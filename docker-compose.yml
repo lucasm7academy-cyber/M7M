@@ -1,0 +1,55 @@
+services:
+
+  # ── BACKEND FORA DO DOCKER (roda direto no Windows com GPU) ─────────────────
+  # Execute manualmente:
+  #   cd backend && python main.py
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5174:5174"
+    environment:
+      # host.docker.internal aponta para o Windows host — onde o backend roda com GPU
+      - BACKEND_URL=host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # ── COMPOSE COMPLETO (VPS Linux com nvidia-container-toolkit) ────────────────
+  # Descomente o bloco abaixo e comente o frontend acima para rodar tudo no Docker
+  #
+  # backend:
+  #   build: ./backend
+  #   ports: ["8090:8090"]
+  #   volumes:
+  #     - ./downloads:/app/downloads
+  #     - ./clips:/app/clips
+  #     - ./overlay1.png:/app/overlay1.png:ro
+  #     - ./overlay2.png:/app/overlay2.png:ro
+  #     - ./overlay3.png:/app/overlay3.png:ro
+  #     - ./overlay4.png:/app/overlay4.png:ro
+  #     - ./overlay5.png:/app/overlay5.png:ro
+  #     - ./DejaVuSans-Bold.ttf:/app/DejaVuSans-Bold.ttf:ro
+  #     - ./usados.txt:/app/usados.txt
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu, video]
+  #   restart: unless-stopped
+  #
+  # frontend:
+  #   build: ./frontend
+  #   ports: ["5174:5174"]
+  #   depends_on: [backend]
+  #   environment:
+  #     - BACKEND_URL=backend
+  #   restart: unless-stopped
+
+networks:
+  default:
+    name: videoeditor_network
+

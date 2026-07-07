@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Fontes do título — espelham backend/config.py FONTS */
+@font-face { font-family: 'tf-padrao';     src: url('/fonts/padrao.ttf')     format('truetype'); font-weight: bold; font-display: swap; }
+@font-face { font-family: 'tf-manuscrita'; src: url('/fonts/manuscrita.ttf') format('truetype'); font-weight: bold; font-display: swap; }
+@font-face { font-family: 'tf-estilo1';    src: url('/fonts/anton.ttf')      format('truetype'); font-display: swap; }
+@font-face { font-family: 'tf-estilo2';    src: url('/fonts/bebas.ttf')      format('truetype'); font-display: swap; }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #0f1117;
+  color: #e2e8f0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+#root { min-height: 100vh; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1a1d27; }
+::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 3px; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+.animate-pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }

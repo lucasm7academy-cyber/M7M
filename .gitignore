@@ -1,0 +1,56 @@
+# Generated / cache
+__pycache__/
+*.pyc
+.claude/
+
+# Downloads & output
+downloads/
+clips/
+frames/
+
+# Secrets
+cookies.txt
+.gdrive/
+token.json
+token.pickle
+pastas.json
+
+# Temp / logs
+*.log
+*TEMP_MPY_wvf_snd.mp4
+*.rawTEMP_MPY_wvf_snd.mp4
+*.tmp
+output_nvenc_test.mp4
+
+# Test / misc
+test.mp4
+test2.mp4
+test.py
+audio.py
+notification.wav
+whoosh.mp3
+viral_fetcher.py
+usados.txt
+Como buscar vídeos.txt
+"vídeos prontos/"
+font 03.ttf
+README.md
+INICIAR_APP.bat
+
+# Music
+music/desktop.ini
+
+# Font files (keep only needed ones)
+# Anton-Regular.ttf, BebasNeue-Regular.ttf, etc.
+
+# Frontend assets generated
+frontend/src/assets/hero.png
+frontend/src/assets/react.svg
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# OS
+.DS_Store
+Thumbs.db
