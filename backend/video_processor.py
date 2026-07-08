@@ -74,8 +74,19 @@ def _get_fps(video_path: str) -> float:
 
 
 def _get_video_duration(video_path: str) -> float | None:
-    """Obtém a duração exata de um vídeo local via ffprobe."""
+    """Obtém a duração exata do track de vídeo (v:0) via ffprobe."""
     try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", video_path],
+            capture_output=True, text=True, timeout=15,
+        )
+        val = r.stdout.strip()
+        if val and val != "N/A" and val != "":
+            return float(val)
+        
+        # Fallback para o format se stream=duration falhar
         r = subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
              "-of", "default=noprint_wrappers=1:nokey=1", video_path],
@@ -631,6 +642,7 @@ def _inserir_freeze_frame_com_narracao(video_path: str, start_sec: float,
         "-b:a", "192k",
         "-ac", "2",
         "-ar", "44100",
+        "-shortest",
         out_path,
     ]
 
@@ -1157,7 +1169,7 @@ def _mix_multiplas_narracoes(video_path: str,
         labels.append(label)
 
     n_inputs = len(labels)
-    mix = f"[{']['.join(labels)}]amix=inputs={n_inputs}:duration=longest:dropout_transition=0:normalize=0[final]"
+    mix = f"[{']['.join(labels)}]amix=inputs={n_inputs}:duration=first:dropout_transition=0:normalize=0[final]"
     filtros.append(mix)
     filter_complex = ";".join(filtros)
 
@@ -1385,37 +1397,18 @@ def _adicionar_hook(
 
         # ── Passo 4: concatenar intro + vídeo principal ──────────────────
         out_path = video_path + ".hook.mp4"
-        # ── Passo 4: concatenar intro + vídeo principal (demuxer concat super rápido) ──
-        out_path = video_path + ".hook.mp4"
-        txt_path = os.path.join(tmpdir, "concat.txt")
-        intro_esc = intro_video.replace('\\', '/')
-        video_esc = video_path.replace('\\', '/')
-        with open(txt_path, "w", encoding="utf-8") as f:
-            f.write(f"file '{intro_esc}'\n")
-            f.write(f"file '{video_esc}'\n")
-
         cmd = [
             "ffmpeg", "-y", "-loglevel", "error",
-            "-f", "concat", "-safe", "0", "-i", txt_path,
-            "-c", "copy",
+            "-i", intro_video,
+            "-i", video_path,
+            "-filter_complex",
+            "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[outv][outa]",
+            "-map", "[outv]", "-map", "[outa]",
+            "-c:v", CODEC_VIDEO, *FFMPEG_PARAMS,
+            "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
             out_path,
         ]
-        r = subprocess.run(cmd, capture_output=True, timeout=120)
-        
-        if r.returncode != 0 or not os.path.exists(out_path) or os.path.getsize(out_path) < 1000:
-            print("[hook] concat demuxer copy falhou, usando fallback lento com re-encodificação...")
-            cmd_slow = [
-                "ffmpeg", "-y", "-loglevel", "error",
-                "-i", intro_video,
-                "-i", video_path,
-                "-filter_complex",
-                "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[outv][outa]",
-                "-map", "[outv]", "-map", "[outa]",
-                "-c:v", CODEC_VIDEO, *FFMPEG_PARAMS,
-                "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
-                out_path,
-            ]
-            r = subprocess.run(cmd_slow, capture_output=True, timeout=300)
+        r = subprocess.run(cmd, capture_output=True, timeout=300)
 
         if r.returncode != 0:
             print(f"[hook] passo 4 concat falhou (rc={r.returncode}):")
