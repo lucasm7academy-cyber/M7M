@@ -27,7 +27,9 @@ from config import (
     TITLE_Y_DEFAULT, TITLE_Y_MIN, TITLE_Y_MAX,
     VIDEO_Y_DEFAULT, VIDEO_Y_MIN, VIDEO_Y_MAX,
     CORES_TITULO, COR_TITULO_DEFAULT,
-    FRAMES_DIR, TARJA_DEFAULT,
+    FRAMES_DIR, TARJA_DEFAULT, SFX_DIR, MUSIC_DIR,
+    HOOK_TIPOS, HOOK_TIPO_DEFAULT, HOOK_SOM_OPCOES, HOOK_SOM_ENTRADA_DEFAULT,
+    HOOK_SOM_SAIDA_DEFAULT, HOOK_TEXT_DEFAULT, HOOK_DURATION_S,
 )
 from video_processor import GPU_AVAILABLE, CODEC_VIDEO, processar_video, proximo_titulo, extrair_frame, obter_duracao
 from viral_fetcher import buscar_videos_virais
@@ -62,11 +64,10 @@ def _extrair_video_id(url: str) -> str | None:
     if "youtu.be/" in url:
         return url.split("youtu.be/")[-1].split("?")[0]
     # Instagram
-    for prefix in ("instagram.com/reel/", "instagr.am/reel/", "instagram.com/p/", "instagr.am/p/"):
-        if prefix in url:
-            after = url.split(prefix)[-1].split("?")[0].split("&")[0].rstrip("/")
-            # some Instagram URLs have extra path after the ID
-            return after.split("/")[0] if "/" in after else after
+    if "/reel/" in url:
+        return url.split("/reel/")[-1].split("/")[0].split("?")[0].split("&")[0]
+    if "/p/" in url:
+        return url.split("/p/")[-1].split("/")[0].split("?")[0].split("&")[0]
     return None
 
 
@@ -207,10 +208,12 @@ async def _background_queue_worker():
                     info = await asyncio.to_thread(drive_uploader.upload_para, pasta_dest["drive_folder_id"], path)
                 else:
                     info = await asyncio.to_thread(drive_uploader.upload, path)
+                
                 item["drive_id"] = info["file_id"]
                 item["drive_url"] = info["web_view_link"]
                 item["status"] = "concluido"
                 await emit_fn({"type": "uploaded", "drive_id": info["file_id"], "drive_url": info["web_view_link"]})
+                
                 removidos = _cleanup_local(path, item.get("url"))
                 item["output_path"] = None
                 await emit_fn({"type": "cleaned", "removed": removidos})
@@ -265,6 +268,13 @@ class UpdateVideoRequest(BaseModel):
     estilo_legenda:  str             | None = None
     narrations:      list[NarrationItem] | None = None
     voice:           str             | None = None
+    hook_ativo:      bool            | None = None
+    hook_tipo:       str             | None = None
+    hook_texto:      str             | None = None
+    hook_som_entrada:str             | None = None
+    hook_som_saida:  str             | None = None
+    musica_fundo:    str             | None = None
+    musica_modo:     str             | None = None
 
 class SearchRequest(BaseModel):
     tema:       str
@@ -308,6 +318,13 @@ def add_video(req: AddVideoRequest):
         "gerar_legenda":  False,
         "estilo_legenda": "AMARELO_CLASSICO",
         "voice":          "padrao",
+        "hook_ativo":     False,
+        "hook_tipo":      HOOK_TIPO_DEFAULT,
+        "hook_texto":     "",
+        "hook_som_entrada": HOOK_SOM_ENTRADA_DEFAULT,
+        "hook_som_saida":   HOOK_SOM_SAIDA_DEFAULT,
+        "musica_fundo":   "none",
+        "musica_modo":    "100_musica",
         "status":         "editando",
         "processado":     False,
     }
@@ -344,6 +361,13 @@ def update_video(idx: int, req: UpdateVideoRequest):
     if req.gerar_legenda   is not None: lista_videos[idx]["gerar_legenda"]  = req.gerar_legenda
     if req.estilo_legenda  is not None: lista_videos[idx]["estilo_legenda"] = req.estilo_legenda
     if req.voice           is not None: lista_videos[idx]["voice"]          = req.voice
+    if req.hook_ativo      is not None: lista_videos[idx]["hook_ativo"]     = req.hook_ativo
+    if req.hook_tipo       is not None: lista_videos[idx]["hook_tipo"]      = req.hook_tipo
+    if req.hook_texto      is not None: lista_videos[idx]["hook_texto"]     = req.hook_texto
+    if req.hook_som_entrada is not None: lista_videos[idx]["hook_som_entrada"] = req.hook_som_entrada
+    if req.hook_som_saida   is not None: lista_videos[idx]["hook_som_saida"]   = req.hook_som_saida
+    if req.musica_fundo    is not None: lista_videos[idx]["musica_fundo"]   = req.musica_fundo
+    if req.musica_modo     is not None: lista_videos[idx]["musica_modo"]    = req.musica_modo
     return lista_videos[idx]
 
 
@@ -394,6 +418,13 @@ def search_viral(req: SearchRequest):
             "gerar_legenda":  False,
             "estilo_legenda": "AMARELO_CLASSICO",
             "voice":          "padrao",
+            "hook_ativo":     False,
+            "hook_tipo":      HOOK_TIPO_DEFAULT,
+            "hook_texto":     "",
+            "hook_som_entrada": HOOK_SOM_ENTRADA_DEFAULT,
+            "hook_som_saida":   HOOK_SOM_SAIDA_DEFAULT,
+            "musica_fundo":   "none",
+            "musica_modo":    "100_musica",
             "status":         "editando",
             "processado":     False,
         }
@@ -695,6 +726,13 @@ def get_options():
         "video_y": {"min": VIDEO_Y_MIN, "max": VIDEO_Y_MAX, "default": VIDEO_Y_DEFAULT},
         "cores":   CORES_TITULO,
         "cor_default": COR_TITULO_DEFAULT,
+        "hook_tipos":  HOOK_TIPOS,
+        "hook_tipo_default":  HOOK_TIPO_DEFAULT,
+        "hook_som_opcoes":    HOOK_SOM_OPCOES,
+        "hook_som_entrada_default": HOOK_SOM_ENTRADA_DEFAULT,
+        "hook_som_saida_default":   HOOK_SOM_SAIDA_DEFAULT,
+        "hook_texto_default": HOOK_TEXT_DEFAULT,
+        "hook_duracao":       HOOK_DURATION_S,
     }
 
 
@@ -723,6 +761,34 @@ def narration_voices():
         print(f"[narration-voices] XTTS indisponível: {e}")
         vozes.append({"id": "", "label": "XTTS offline", "desc": "Serviço de voz IA não está rodando", "tipo": "offline"})
     return vozes
+
+
+@app.get("/api/sfx")
+def list_sfx():
+    """Lista arquivos de som (efeitos sonoros) disponíveis em SFX_DIR."""
+    if not os.path.isdir(SFX_DIR):
+        return []
+    exts = {".mp3", ".wav", ".ogg", ".m4a"}
+    files = []
+    for f in os.listdir(SFX_DIR):
+        name, ext = os.path.splitext(f)
+        if ext.lower() in exts:
+            files.append({"id": name, "file": f, "label": name.replace("_", " ").title()})
+    return sorted(files, key=lambda x: x["id"])
+
+
+@app.get("/api/music")
+def list_music():
+    """Lista arquivos de trilha sonora disponíveis em MUSIC_DIR."""
+    if not os.path.isdir(MUSIC_DIR):
+        return []
+    exts = {".mp3", ".wav", ".ogg", ".m4a", ".flac"}
+    files = []
+    for f in os.listdir(MUSIC_DIR):
+        name, ext = os.path.splitext(f)
+        if ext.lower() in exts:
+            files.append({"id": name, "file": f, "label": name.replace("_", " ").title()})
+    return sorted(files, key=lambda x: x["id"])
 
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────

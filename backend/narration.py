@@ -135,9 +135,13 @@ def gerar_wav_titulo(texto: str) -> str | None:
         PIPER_EXE,
         "--stdin",
         "--model", PIPER_MODEL,
-        "--length_scale", "1.00",
+        # Configuração Otimizada para Retenção/Viral (TikTok style):
+        # length_scale: Velocidade. Menor = mais rápido. 0.85 acelera em ~15% (ideal para reter atenção).
+        "--length_scale", "0.85",
+        # noise_scale: Expressividade. 0.667 é o default; mantido para soar humano, mas focado.
         "--noise_scale",  "0.667",
-        "--noise_w",      "0.8",
+        # noise_w: Variação de ritmo. Reduzido de 0.8 para 0.7 para uma cadência mais firme e direta.
+        "--noise_w",      "0.7",
         "--output_file",  wav_path,
     ]
 
@@ -188,5 +192,29 @@ def gerar_wav(texto: str, voice_id: str = "padrao") -> str | None:
     - voice_id == id de voz XTTS:   usa voz_ai (porta 8095)
     """
     if not voice_id or voice_id == "padrao":
-        return gerar_wav_titulo(texto)
-    return gerar_wav_xtts(texto, voice_id)
+        wav = gerar_wav_titulo(texto)
+    else:
+        wav = gerar_wav_xtts(texto, voice_id)
+
+    if not wav or not os.path.exists(wav):
+        return None
+
+    # Aumentar +2dB no áudio da narração (reforço de volume solicitado)
+    boosted_wav = wav + ".boost.wav"
+    try:
+        r = subprocess.run([
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-i", wav, "-filter:a", "volume=2dB",
+            "-c:a", "pcm_s16le", boosted_wav
+        ], capture_output=True)
+        if r.returncode == 0 and os.path.exists(boosted_wav):
+            try: os.unlink(wav)
+            except OSError: pass
+            os.replace(boosted_wav, wav)
+    except Exception as e:
+        print(f"[TTS] erro ao aplicar +2dB: {e}")
+        if os.path.exists(boosted_wav):
+            try: os.unlink(boosted_wav)
+            except OSError: pass
+
+    return wav

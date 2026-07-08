@@ -16,12 +16,9 @@ start "Voz XTTS (8095)" cmd /k "cd /d C:\Users\78787\Documents\voz_ai && venv\Sc
 REM Frontend (porta 5174)
 start "Frontend (5174)" cmd /k "cd /d C:\Users\78787\Documents\moviepy\frontend && npm run dev"
 
-echo Aguardando os servidores subirem (15s) e abrindo o navegador...
-timeout /t 15 >nul
-start "" "http://localhost:5174/"
-
 echo.
-echo Pronto! Se o navegador mostrar "conexao recusada",
-echo espere mais alguns segundos e atualize a pagina (F5).
+echo Servidores subindo. Aguarde alguns segundos e abra http://localhost:5174/
+echo no navegador manualmente.
+echo.
 echo Voce pode fechar ESTA janela; as outras 3 devem ficar abertas.
 pause

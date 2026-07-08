@@ -37,8 +37,11 @@ font 03.ttf
 README.md
 INICIAR_APP.bat
 
-# Music
-music/desktop.ini
+# Music & SFX & Video Assets
+music/
+sfx/
+*.mp4
+*.jpg
 
 # Font files (keep only needed ones)
 # Anton-Regular.ttf, BebasNeue-Regular.ttf, etc.

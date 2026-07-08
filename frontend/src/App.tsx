@@ -169,7 +169,7 @@ export default function App() {
     toast('Vídeo removido', 'yellow')
   }
 
-  async function handleUpdate(patch: Partial<Pick<VideoItem,'title'|'video_y'|'overlay'|'font'|'title_y'|'filtro'|'cor_titulo'|'titulo_borda'|'tarja'|'narrar_titulo'|'travar_inicio'|'narrations'|'gerar_legenda'|'estilo_legenda'|'voice'>>) {
+  async function handleUpdate(patch: Partial<Pick<VideoItem,'title'|'video_y'|'overlay'|'font'|'title_y'|'filtro'|'cor_titulo'|'titulo_borda'|'tarja'|'narrar_titulo'|'travar_inicio'|'narrations'|'gerar_legenda'|'estilo_legenda'|'voice'|'hook_ativo'|'hook_tipo'|'hook_texto'|'hook_som_entrada'|'hook_som_saida'|'musica_fundo'|'musica_modo'>>) {
     if (selected === null) return
     console.log('[handleUpdate] patch enviado:', patch)
     const updated = await api.updateVideo(selected, patch)

@@ -37,18 +37,18 @@ GPU_AVAILABLE = _detectar_nvenc()
 if GPU_AVAILABLE:
     CODEC_VIDEO   = "h264_nvenc"
     FFMPEG_PARAMS = [
-        "-preset", "p4",
+        "-preset", "p1",
         "-rc",     "vbr",
-        "-cq",     "23",
-        "-b:v",    "8M",
-        "-maxrate","12M",
-        "-bufsize", "16M",
+        "-cq",     "22",
+        "-b:v",    "10M",
+        "-maxrate","20M",
+        "-bufsize", "30M",
         "-map_metadata", "-1",
     ]
     print("[GPU] h264_nvenc — NVENC ativo")
 else:
     CODEC_VIDEO   = "libx264"
-    FFMPEG_PARAMS = ["-preset", "fast", "-crf", "23", "-map_metadata", "-1"]
+    FFMPEG_PARAMS = ["-preset", "ultrafast", "-crf", "22", "-map_metadata", "-1"]
     print("[CPU] libx264 — sem NVENC")
 
 # ── Viral Intro ────────────────────────────────────────────────────────────────
@@ -71,6 +71,20 @@ def _get_fps(video_path: str) -> float:
         return 30.0
     except Exception:
         return 30.0
+
+
+def _get_video_duration(video_path: str) -> float | None:
+    """Obtém a duração exata de um vídeo local via ffprobe."""
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", video_path],
+            capture_output=True, text=True, timeout=15,
+        )
+        return float(r.stdout.strip())
+    except Exception:
+        return None
+
 
 
 # ── Helpers para ASS ───────────────────────────────────────────────────────────
@@ -113,8 +127,8 @@ def _gerar_ass_intro_titulo(texto: str, dur_total: float, dur_max: float | None 
     """
     import tempfile
 
-    font_size = 100
-    max_w = int(WIDTH * 0.80)
+    font_size = 125
+    max_w = int(WIDTH * 0.85)
     chunks = _split_into_chunks(texto, max_w, font_size)
     if not chunks:
         return None
@@ -133,7 +147,7 @@ def _gerar_ass_intro_titulo(texto: str, dur_total: float, dur_max: float | None 
         "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
         "Alignment, MarginL, MarginR, MarginV, Encoding\n"
         f"Style: Default,DejaVu Sans,{font_size},&H00FFFFFF,&H0000FFFF,"
-        "&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,5,2,5,0,0,0,1\n"
+        "&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,8,3,5,0,0,0,1\n"
         "\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
@@ -150,9 +164,7 @@ def _gerar_ass_intro_titulo(texto: str, dur_total: float, dur_max: float | None 
         nw = len(chunk.split())
         chunk_durs.append(max(min_chunk_dur, nw * 0.25))
     total_min = sum(chunk_durs)
-    if dur_max is None:
-        dur_max = dur_total
-    effective = max(dur_total, min(dur_max, total_min))
+    effective = dur_total
     scale = effective / total_min if total_min > 0 else 1.0
     chunk_offset = 0.0
     for ci, chunk in enumerate(chunks):
@@ -173,9 +185,9 @@ def _gerar_ass_intro_titulo(texto: str, dur_total: float, dur_max: float | None 
             partes: list[str] = []
             for j, pw in enumerate(words):
                 if j == wi:
-                    partes.append(f"{{\\c&H0000FFFF&\\b1}}{pw}{{\\c&HFFFFFF&\\b0}}")
+                    partes.append(f"{{\\c&H0000FFFF&\\b1\\fscx110\\fscy110}}{pw}{{\\c&HFFFFFF&\\b1\\fscx100\\fscy100}}")
                 else:
-                    partes.append(pw)
+                    partes.append(f"{{\\b1}}{pw}")
             linha = " ".join(partes)
 
             anim = ""
@@ -470,16 +482,11 @@ def _adicionar_intro_viral(
         title_esc = title_tmp.replace("\\", "/").replace(":", "\\:")
 
         # ── Monta filter complex ────────────────────────────────────────
-        # Fundo: scale+crop → split (stable + fade) → concat
+        # Fundo: scale+crop
         fc = (
             f"[0:v]scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,"
             f"crop={WIDTH}:{HEIGHT},"
-            f"setpts=N/{fps}/TB[bg];"
-            f"[bg]split=2[bg_s][bg_f];"
-            f"[bg_s]trim=end={trans_start},setpts=PTS-STARTPTS[bg_stable];"
-            f"[bg_f]trim=start={trans_start},setpts=PTS-STARTPTS,"
-            f"fade=out:st=0:d={FADE_DUR}:color=black[bg_faded];"
-            f"[bg_stable][bg_faded]concat=n=2:v=1:a=0[bg_final]"
+            f"setpts=N/{fps}/TB[bg_final]"
         )
 
         # Overlay PNG em cima do fundo (fica nítido durante o fade)
@@ -514,7 +521,7 @@ def _adicionar_intro_viral(
             f"adelay={whoosh_delay_ms}|{whoosh_delay_ms},"
             f"volume=2.0[whoosh_del];"
             f"[{nar_i}:a][whoosh_del]"
-            f"amix=inputs=2:duration=longest:dropout_transition=0,"
+            f"amix=inputs=2:duration=longest:dropout_transition=0:normalize=0,"
             f"aformat=sample_fmts=s16p:channel_layouts=stereo[final_a]"
         )
 
@@ -1030,7 +1037,7 @@ def _mix_narracao_titulo(video_path: str, wav_titulo: str) -> bool:
     filter_complex = (
         f"[0:a]volume='{vol_expr}':eval=frame[orig];"
         f"[1:a]adelay={delay_ms}|{delay_ms}[tts];"
-        f"[orig][tts]amix=inputs=2:duration=first:dropout_transition=0[final]"
+        f"[orig][tts]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[final]"
     )
 
     out_path = video_path + ".narrado.mp4"
@@ -1150,7 +1157,7 @@ def _mix_multiplas_narracoes(video_path: str,
         labels.append(label)
 
     n_inputs = len(labels)
-    mix = f"[{']['.join(labels)}]amix=inputs={n_inputs}:duration=longest:dropout_transition=0[final]"
+    mix = f"[{']['.join(labels)}]amix=inputs={n_inputs}:duration=longest:dropout_transition=0:normalize=0[final]"
     filtros.append(mix)
     filter_complex = ";".join(filtros)
 
@@ -1201,17 +1208,320 @@ def _mix_multiplas_narracoes(video_path: str,
 # ── Processamento ─────────────────────────────────────────────────────────────
 
 def _video_id_from_url(url: str, fallback_idx: int) -> str:
-    if "youtube.com/watch?v=" in url:
+    if "shorts/" in url:
+        return url.split("shorts/")[-1].split("?")[0].split("&")[0]
+    if "v=" in url:
         return url.split("v=")[-1].split("&")[0]
-    if "youtube.com/shorts/" in url:
-        return url.split("shorts/")[-1].split("?")[0]
     if "youtu.be/" in url:
         return url.split("youtu.be/")[-1].split("?")[0]
     # Instagram
-    for prefix in ("instagram.com/reel/", "instagr.am/reel/", "instagram.com/p/", "instagr.am/p/"):
-        if prefix in url:
-            return url.split(prefix)[-1].split("?")[0].rstrip("/").split("/")[0]
+    if "/reel/" in url:
+        return url.split("/reel/")[-1].split("/")[0].split("?")[0].split("&")[0]
+    if "/p/" in url:
+        return url.split("/p/")[-1].split("/")[0].split("?")[0].split("&")[0]
     return f"video_{int(time.time())}_{fallback_idx}"
+
+
+def _adicionar_hook(
+    video_path: str,
+    item: dict,
+    raw_video_path: str,
+    overlay_path: str | None = None,
+) -> tuple[bool, float]:
+    """
+    Prepend um hook super viral antes do vídeo.
+    Retorna (sucesso, duracao_hook).
+    """
+    import tempfile
+    import shutil
+    from narration import PIPER_AVAILABLE, gerar_wav, get_audio_duration
+
+    hook_tipo = item.get("hook_tipo", HOOK_TIPO_DEFAULT)
+    hook_texto = (item.get("hook_texto") or "").strip() or HOOK_TEXT_DEFAULT
+    hook_som_entrada = item.get("hook_som_entrada", HOOK_SOM_ENTRADA_DEFAULT)
+    hook_som_saida   = item.get("hook_som_saida", HOOK_SOM_SAIDA_DEFAULT)
+
+    # 1. Gerar narração (TTS) para o Gancho
+    voice = item.get("voice", "padrao")
+    wav_narracao = gerar_wav(hook_texto, voice) if PIPER_AVAILABLE else None
+    dur_narracao = get_audio_duration(wav_narracao) if wav_narracao else 0.0
+
+    # 2. Duração dinâmica baseada no áudio (mínimo de 2.0s, garantindo tempo pro TTS)
+    dur = max(1.5, dur_narracao + 0.5) if dur_narracao > 0 else HOOK_DURATION_S
+    fps = 30
+    total_frames = int(dur * fps)
+
+    tmpdir = tempfile.mkdtemp(prefix="hook_")
+    ass_path = None
+    try:
+        # ── Passo 1: extrair 1 frame do raw ─────────────────────────────
+        frame_path = os.path.join(tmpdir, "frame.jpg")
+        r = subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error",
+             "-i", raw_video_path, "-frames:v", "1", "-q:v", "3", frame_path],
+            capture_output=True, timeout=30,
+        )
+        if r.returncode != 0 or not os.path.exists(frame_path):
+            print(f"[hook] passo 1 falhou: extrair frame")
+            return False, 0.0
+
+        # ── Passo 2: aplicar efeito visual inicial (blur) ────────────────
+        bg_path = frame_path
+        if hook_tipo == "blur":
+            bg_path = os.path.join(tmpdir, "blurred.jpg")
+            subprocess.run(
+                ["ffmpeg", "-y", "-loglevel", "error",
+                 "-i", frame_path, "-vf", "boxblur=lr=12:lp=2", bg_path],
+                capture_output=True, timeout=30,
+            )
+
+        # ── Passo 3: gerar vídeo da intro ───────────────────────────────
+        intro_video = os.path.join(tmpdir, "intro.mp4")
+
+        n_inputs = 0
+        inputs = [
+            "-i", bg_path,
+        ]
+        n_inputs += 1  # input 0 is bg
+
+        ov_idx: int | None = None
+        if overlay_path and os.path.exists(overlay_path):
+            inputs += [
+                "-loop", "1", "-t", str(dur), "-framerate", str(fps),
+                "-i", overlay_path,
+            ]
+            ov_idx = n_inputs
+            n_inputs += 1
+
+        # Sound Effects & Narration
+        fc_audio = ""
+        audio_labels: list[str] = []
+
+        # 1. Som de Entrada
+        if hook_som_entrada != "none":
+            ent_path = None
+            for ext in [".mp3", ".wav", ".MP3", ".WAV"]:
+                cand = os.path.join(SFX_DIR, f"{hook_som_entrada}{ext}")
+                if os.path.exists(cand):
+                    ent_path = cand
+                    break
+            
+            if ent_path:
+                inputs += ["-i", ent_path]
+                ent_idx = n_inputs
+                n_inputs += 1
+                if hook_som_entrada == "whoosh":
+                    fc_audio += f";[{ent_idx}:a]asetrate=44100*0.5,aresample=44100,volume=2.5[s1]"
+                else:
+                    fc_audio += f";[{ent_idx}:a]volume=2.0[s1]"
+                audio_labels.append("s1")
+
+
+
+        if wav_narracao and os.path.exists(wav_narracao):
+            inputs += ["-i", wav_narracao]
+            nar_idx = n_inputs
+            n_inputs += 1
+            fc_audio += f";[{nar_idx}:a]volume=1.0[nar_snd]"
+            audio_labels.append("nar_snd")
+
+        # Texto Animado (ASS)
+        # O ASS vai usar a mesma lógica do viral_intro (palavra a palavra explodindo)
+        ass_path = _gerar_ass_intro_titulo(hook_texto, dur_narracao if dur_narracao > 0 else dur, dur)
+
+        # ── Build filtergraph ───────────────────────────────────────────
+        fc = (
+            f"[0:v]scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,"
+            f"crop={WIDTH}:{HEIGHT}[bg_raw]"
+        )
+
+        # Viral VFX: Constant Zoom
+        fc += (
+            f";[bg_raw]zoompan=z='1.05+on*0.002':"
+            f"d={total_frames}:fps={fps}:s={WIDTH}x{HEIGHT}[bg_z]"
+        )
+        bg_label = "bg_z"
+
+        # Overlay PNG
+        if ov_idx is not None:
+            fc += f";[{ov_idx}:v]setpts=N/{fps}/TB[ov_loop]"
+            fc += f";[{bg_label}][ov_loop]overlay=0:0[with_ov]"
+            src_label = "with_ov"
+        else:
+            src_label = bg_label
+
+        # Subtitles
+        if ass_path:
+            ass_esc = ass_path.replace("\\", "/").replace(":", "\\:")
+            fc += f";[{src_label}]subtitles='{ass_esc}'[final_v]"
+        else:
+            fc += f";[{src_label}]copy[final_v]"
+
+        fc += fc_audio
+
+        if not audio_labels:
+            fc += f";anullsrc=r=44100:cl=mono[final_a]"
+        elif len(audio_labels) == 1:
+            fc += f";[{audio_labels[0]}]copy[final_a]"
+        else:
+            mix = f"[{']['.join(audio_labels)}]amix=inputs={len(audio_labels)}:duration=longest:normalize=0[final_a]"
+            fc += f";{mix}"
+
+        cmd = (
+            ["ffmpeg", "-y", "-loglevel", "error"]
+            + inputs
+            + ["-filter_complex", fc]
+            + ["-map", "[final_v]", "-map", "[final_a]"]
+            + ["-c:v", CODEC_VIDEO] + FFMPEG_PARAMS
+            + ["-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100"]
+            + ["-shortest", intro_video]
+        )
+
+        r = subprocess.run(cmd, capture_output=True, timeout=300)
+        if r.returncode != 0 or not os.path.exists(intro_video):
+            print(f"[hook] passo 3 gerar intro falhou (rc={r.returncode}):")
+            print(r.stderr.decode("utf-8", errors="replace")[-500:])
+            return False, 0.0
+
+        # ── Passo 4: concatenar intro + vídeo principal ──────────────────
+        out_path = video_path + ".hook.mp4"
+        # ── Passo 4: concatenar intro + vídeo principal (demuxer concat super rápido) ──
+        out_path = video_path + ".hook.mp4"
+        txt_path = os.path.join(tmpdir, "concat.txt")
+        intro_esc = intro_video.replace('\\', '/')
+        video_esc = video_path.replace('\\', '/')
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(f"file '{intro_esc}'\n")
+            f.write(f"file '{video_esc}'\n")
+
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-f", "concat", "-safe", "0", "-i", txt_path,
+            "-c", "copy",
+            out_path,
+        ]
+        r = subprocess.run(cmd, capture_output=True, timeout=120)
+        
+        if r.returncode != 0 or not os.path.exists(out_path) or os.path.getsize(out_path) < 1000:
+            print("[hook] concat demuxer copy falhou, usando fallback lento com re-encodificação...")
+            cmd_slow = [
+                "ffmpeg", "-y", "-loglevel", "error",
+                "-i", intro_video,
+                "-i", video_path,
+                "-filter_complex",
+                "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[outv][outa]",
+                "-map", "[outv]", "-map", "[outa]",
+                "-c:v", CODEC_VIDEO, *FFMPEG_PARAMS,
+                "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
+                out_path,
+            ]
+            r = subprocess.run(cmd_slow, capture_output=True, timeout=300)
+
+        if r.returncode != 0:
+            print(f"[hook] passo 4 concat falhou (rc={r.returncode}):")
+            print(r.stderr.decode("utf-8", errors="replace")[-500:])
+            if os.path.exists(out_path):
+                try: os.unlink(out_path)
+                except OSError: pass
+            return False, 0.0
+
+        # ── Passo 5: Mixar o Som de Saída na junção dos dois vídeos (para não cortar o áudio) ──
+        if hook_som_saida != "none":
+            sai_path = None
+            for ext in [".mp3", ".wav", ".MP3", ".WAV"]:
+                cand = os.path.join(SFX_DIR, f"{hook_som_saida}{ext}")
+                if os.path.exists(cand):
+                    sai_path = cand
+                    break
+            
+            if sai_path:
+                delay_ms = max(0, int((dur - 0.35) * 1000))
+                    
+                temp_sfx_path = out_path + ".sfx.mp4"
+                cmd_sfx = [
+                    "ffmpeg", "-y", "-loglevel", "error",
+                    "-i", out_path,
+                    "-i", sai_path,
+                    "-filter_complex",
+                    f"[1:a]volume=2.0,adelay={delay_ms}|{delay_ms}[sfx];[0:a][sfx]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[aout]",
+                    "-map", "0:v:0", "-map", "[aout]",
+                    "-c:v", "copy",
+                    "-c:a", "aac", "-b:a", "192k",
+                    temp_sfx_path
+                ]
+                r_sfx = subprocess.run(cmd_sfx, capture_output=True, timeout=120)
+                if r_sfx.returncode == 0 and os.path.exists(temp_sfx_path):
+                    os.replace(temp_sfx_path, out_path)
+                else:
+                    print(f"[hook] erro ao aplicar som de saída: {r_sfx.stderr.decode('utf-8', errors='replace')}")
+
+        os.replace(out_path, video_path)
+        print(f"[hook] adicionado ({dur:.1f}s, tipo={hook_tipo})")
+        return True, dur
+
+    except Exception as e:
+        print(f"[hook] erro: {e}")
+        return False, 0.0
+    finally:
+        if tmpdir and os.path.isdir(tmpdir):
+            shutil.rmtree(tmpdir, ignore_errors=True)
+        if ass_path and os.path.exists(ass_path):
+            try: os.unlink(ass_path)
+            except OSError: pass
+
+
+def _adicionar_trilha_fundo(video_path: str, musica_fundo: str, modo: str) -> bool:
+    """
+    Adiciona trilha sonora (mp3) sobre todo o vídeo final.
+    Usa stream_loop -1 e amix=duration=first com stream copy no vídeo.
+    """
+    from config import MUSIC_DIR
+    if not musica_fundo or musica_fundo == "none":
+        return True
+        
+    musica_path = os.path.join(MUSIC_DIR, musica_fundo)
+    if not os.path.exists(musica_path):
+        if not musica_path.endswith(".mp3") and os.path.exists(musica_path + ".mp3"):
+            musica_path += ".mp3"
+        else:
+            print(f"[trilha] música não encontrada: {musica_path}")
+            return False
+
+    vol_musica = 0.85 if modo == "100_musica" else 0.30
+    out_path = video_path + ".trilha.mp4"
+    
+    dur = _get_video_duration(video_path)
+    cmd = [
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-i", video_path,
+        "-stream_loop", "-1", "-i", musica_path,
+        "-filter_complex",
+        f"[1:a]volume={vol_musica}[mus];[0:a][mus]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[final_a]",
+        "-map", "0:v:0", "-map", "[final_a]",
+        "-c:v", "copy",
+        "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
+    ]
+    if dur is not None:
+        cmd += ["-t", f"{dur:.3f}"]
+    cmd += [out_path]
+    
+    try:
+        r = subprocess.run(cmd, capture_output=True, timeout=120)
+        if r.returncode != 0:
+            print(f"[trilha] falhou (rc={r.returncode}): {r.stderr.decode('utf-8', errors='replace')[-300:]}")
+            if os.path.exists(out_path):
+                try: os.unlink(out_path)
+                except OSError: pass
+            return False
+        os.replace(out_path, video_path)
+        print(f"[trilha] aplicou '{musica_fundo}' (modo={modo}, vol={vol_musica}) com sucesso!")
+        return True
+    except Exception as e:
+        print(f"[trilha] erro ao aplicar música: {e}")
+        if os.path.exists(out_path):
+            try: os.unlink(out_path)
+            except OSError: pass
+        return False
 
 
 async def processar_video(item: dict, clip_index: int, emit) -> str | None:
@@ -1304,7 +1614,6 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
         video_y = item.get("video_y", VIDEO_Y_DEFAULT)
         scale_w = int(WIDTH * VIDEO_SCALE_RATIO_VERTICAL)
         scale_h = int(HEIGHT * VIDEO_SCALE_RATIO_VERTICAL)
-        # y absoluto no canvas: centro do canvas + offset do usuário
         pad_y = (HEIGHT - scale_h) // 2 + video_y
         print(f"[DEBUG] video_y={video_y}, pad_y={pad_y}")
 
@@ -1329,14 +1638,21 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
             filtros.append(f"[{cur}]eq=brightness=0.04:contrast=0.9:gamma=0.92[vid]")
             cur = "vid"
 
-        # Overlay PNG
+        # 1. Tarja PNG (Fica no fundo, por baixo do Overlay e do Título)
+        if tarja_png:
+            inputs += ["-loop", "1", "-i", tarja_png]
+            filtros.append(f"[{cur}][{idx}:v]overlay=0:0[tarj]")
+            cur = "tarj"
+            idx += 1
+
+        # 2. Overlay PNG (Fica por cima da tarja)
         if overlay_path_local and os.path.exists(overlay_path_local):
             inputs += ["-loop", "1", "-i", overlay_path_local]
             filtros.append(f"[{cur}][{idx}:v]overlay=0:0[ov]")
             cur = "ov"
             idx += 1
 
-        # Título PNG
+        # 3. Título PNG (Fica por cima de tudo)
         if title_png:
             inputs += ["-loop", "1", "-i", title_png]
             title_y = item.get("title_y", TITLE_Y_DEFAULT)
@@ -1344,20 +1660,22 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
             cur = "t"
             idx += 1
 
-        # Tarja PNG
-        if tarja_png:
-            inputs += ["-loop", "1", "-i", tarja_png]
-            filtros.append(f"[{cur}][{idx}:v]overlay=0:0[final_v]")
-            cur = "final_v"
-            idx += 1
-
         if cur != "final_v":
             filtros.append(f"[{cur}]copy[final_v]")
             cur = "final_v"
 
+        musica_fundo = item.get("musica_fundo")
+        if musica_fundo and musica_fundo != "none":
+            modo = item.get("musica_modo", "100_musica")
+            vol_orig = 0.0 if modo == "100_musica" else 1.0
+            filtros.append(f"[0:a]volume={vol_orig}[aud_mod]")
+            aud_map = "[aud_mod]"
+        else:
+            aud_map = "0:a?"
+
         cmd = inputs + [
             "-filter_complex", ";".join(filtros),
-            "-map", f"[{cur}]", "-map", "0:a?",
+            "-map", f"[{cur}]", "-map", aud_map,
             "-c:v", CODEC_VIDEO, *FFMPEG_PARAMS,
             "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
             "-shortest", output_path,
@@ -1376,17 +1694,35 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
                 try: os.unlink(p)
                 except OSError: pass
 
-        # ── Viral Intro (travar início) ──────────────────────────────
-        dur_narracao_intro = 0.0
+        # ── Viral Intro (travar início) — PRIMEIRO (posição 1) ───────
+        dur_viral = 0.0
+        dur_total_prepend = 0.0
         ok_viral = False
         if item.get("travar_inicio") and item.get("narrar_titulo"):
             await cb("status", "viral_intro")
-            ok_viral, dur_narracao_intro = await asyncio.to_thread(
+            ok_viral, dur_viral = await asyncio.to_thread(
                 _adicionar_intro_viral, output_path, item, video_path,
                 overlay_path_local if (overlay_path_local and os.path.exists(overlay_path_local)) else None,
             )
-            if not ok_viral:
+            if ok_viral:
+                dur_total_prepend += dur_viral
+            else:
                 print("[viral] intro viral falhou — tentando fallback de narração normal")
+
+        # ── Hook (gancho de 3s) — POR ÚLTIMO (posição 0) ─────────────
+        # Ambos prependem via concat; o último a executar fica no início.
+        if item.get("hook_ativo"):
+            await cb("status", "hook")
+            ok_hook, dur_hook = await asyncio.to_thread(
+                _adicionar_hook, output_path, item, video_path,
+                overlay_path_local if (overlay_path_local and os.path.exists(overlay_path_local)) else None,
+            )
+            if ok_hook:
+                dur_total_prepend += dur_hook
+            else:
+                print("[hook] falhou — continuando sem hook")
+
+        # ── Freeze + narrações em ordem cronológica ────────────────────
 
         # ── Freeze + narrações em ordem cronológica ────────────────────
         # Processa TODOS os eventos (freeze e narração) em ordem de
@@ -1395,7 +1731,7 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
         #   - Uma narração em t=5s recebe esse offset (já que o freeze
         #     aconteceu antes dela no vídeo original)
         #   - Um freeze em t=8s NÃO afeta a narração em t=5s
-        offset_corrente = dur_narracao_intro
+        offset_corrente = dur_total_prepend
         freeze_ids: set[str] = set()
         freeze_legenda_timings: list[tuple[str, float, float]] = []
         narracoes: list[dict] = []
@@ -1526,6 +1862,13 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
                 )
             if not ok_subs:
                 print("[subs] legenda falhou — clip mantido sem legenda")
+
+        # ── Trilha Sonora de Fundo (Música Viral) ─────────────────────
+        if item.get("musica_fundo") and item.get("musica_fundo") != "none":
+            await cb("status", "musica_fundo")
+            await asyncio.to_thread(
+                _adicionar_trilha_fundo, output_path, item.get("musica_fundo"), item.get("musica_modo", "100_musica")
+            )
 
         finished_at = int(time.time() * 1000)
         await cb("status", "concluido")

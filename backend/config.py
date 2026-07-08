@@ -47,13 +47,15 @@ OUTPUT_DIR   = os.path.join(ROOT, "clips")
 DOWNLOAD_DIR = os.path.join(ROOT, "downloads")
 FRAMES_DIR   = os.path.join(ROOT, "frames")   # cache de frames pro preview
 COOKIES_FILE = os.path.join(ROOT, "cookies.txt")
+SFX_DIR = os.path.join(ROOT, "sfx")
+MUSIC_DIR = os.path.join(ROOT, "music")
 
 # Tarja (caixa preta + texto) — cobre marca d'água. Valores em fração 0..1.
 TARJA_DEFAULT = {
     "ativo": False,
     "x": 0.35, "y": 0.45,   # canto superior-esquerdo da caixa (fração)
     "w": 0.30, "h": 0.07,   # largura/altura (fração)
-    "texto": "",            # texto centralizado (opcional)
+    "texto": "@m7academy_",  # texto centralizado (opcional)
 }
 
 # Fontes disponíveis para o título (label → arquivo na raiz do projeto).
@@ -226,3 +228,13 @@ TITULOS_PADRAO = [
     "Isso é gameplay de alto nível...",
     "Simplesmente insano...",
 ]
+
+HOOK_TIPOS = ["textao", "corte_seco"]
+HOOK_TIPO_DEFAULT = "textao"
+HOOK_DURATION_S = 3.0
+HOOK_TEXT_DEFAULT = "OLHA ISSO!"
+HOOK_SOM_OPCOES = ["whoosh", "camera", "click", "notificacao", "none"]
+HOOK_SOM_ENTRADA_DEFAULT = "notificacao"
+HOOK_SOM_SAIDA_DEFAULT = "whoosh"
+HOOK_FADE_DUR_S = 0.15
+

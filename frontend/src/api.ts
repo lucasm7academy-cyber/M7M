@@ -43,6 +43,14 @@ export interface VideoItem {
   gerar_legenda?: boolean
   /** Estilo da legenda: AMARELO_CLASSICO | POP_BRANCO | BOX_HORMOZI | NEON_VERDE. */
   estilo_legenda?: string
+  /** Hook de 3s no início do vídeo. */
+  hook_ativo?:   boolean
+  hook_tipo?:    string
+  hook_texto?:   string
+  hook_som_entrada?: string
+  hook_som_saida?:   string
+  musica_fundo?: string
+  musica_modo?:  string
   status:     string
   processado: boolean
   output_path?: string
@@ -106,6 +114,12 @@ export interface OverlayInfo {
   id:     string
   exists: boolean
   url:    string
+}
+
+export interface MusicItem {
+  id:    string
+  file:  string
+  label: string
 }
 
 // ── Voz (serviço XTTS na porta 8095, proxy /voz) ──────────────────────────────
@@ -211,7 +225,7 @@ export const api = {
   getVideos:   ()                           => req<VideoItem[]>('GET',  '/api/videos'),
   addVideo:    (url: string, title?: string)=> req<{idx:number;video:VideoItem}>('POST', '/api/videos', { url, title }),
   deleteVideo: (idx: number)               => req<unknown>('DELETE', `/api/videos/${idx}`),
-  updateVideo: (idx: number, patch: Partial<Pick<VideoItem,'title'|'video_y'|'overlay'|'font'|'title_y'|'filtro'|'cor_titulo'|'titulo_borda'|'tarja'|'narrar_titulo'|'travar_inicio'|'narrations'|'gerar_legenda'|'estilo_legenda'|'voice'>>) =>
+  updateVideo: (idx: number, patch: Partial<Pick<VideoItem,'title'|'video_y'|'overlay'|'font'|'title_y'|'filtro'|'cor_titulo'|'titulo_borda'|'tarja'|'narrar_titulo'|'travar_inicio'|'narrations'|'gerar_legenda'|'estilo_legenda'|'voice'|'hook_ativo'|'hook_tipo'|'hook_texto'|'hook_som_entrada'|'hook_som_saida'|'musica_fundo'|'musica_modo'>>) =>
                                               req<VideoItem>('PATCH', `/api/videos/${idx}`, patch),
   frameUrl:    (url: string) => `/api/frame?url=${encodeURIComponent(url)}`,
   search:      (tema: string, quantidade: number) =>
@@ -219,6 +233,7 @@ export const api = {
   process:     ()                           => req<{started:boolean;enfileirados:number;total:number}>('POST', '/api/process'),
   clips:       ()                           => req<ClipFile[]>('GET', '/api/clips'),
   overlays:    ()                           => req<OverlayInfo[]>('GET', '/api/overlays'),
+  listMusic:   ()                           => req<MusicItem[]>('GET', '/api/music'),
   uploadOverlay: async (file: File) => {
     const fd = new FormData()
     fd.append('file', file)

@@ -1,6 +1,6 @@
-import { Shuffle, Mic2, Plus, X, Captions, Square, Clock, Trash2, ChevronDown } from 'lucide-react'
+import { Shuffle, Mic2, Plus, X, Captions, Square, Clock, Trash2, ChevronDown, Music } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { api, type VideoItem, type OverlayInfo, type Tarja, type NarrationVoice } from '../api'
+import { api, type VideoItem, type OverlayInfo, type Tarja, type NarrationVoice, type MusicItem } from '../api'
 
 const TARJA_DEFAULT: Tarja = { ativo: false, x: 0.35, y: 0.45, w: 0.30, h: 0.07, texto: '' }
 
@@ -41,7 +41,7 @@ const ESTILOS_LEGENDA: { key: string; label: string; desc: string }[] = [
 interface Props {
   video:    VideoItem | null
   overlays: OverlayInfo[]
-  onChange: (patch: Partial<Pick<VideoItem, 'title' | 'video_y' | 'overlay' | 'font' | 'title_y' | 'filtro' | 'cor_titulo' | 'titulo_borda' | 'tarja' | 'narrar_titulo' | 'travar_inicio' | 'narrations' | 'gerar_legenda' | 'estilo_legenda'>>) => void
+  onChange: (patch: Partial<Pick<VideoItem, 'title' | 'video_y' | 'overlay' | 'font' | 'title_y' | 'filtro' | 'cor_titulo' | 'titulo_borda' | 'tarja' | 'narrar_titulo' | 'travar_inicio' | 'narrations' | 'gerar_legenda' | 'estilo_legenda' | 'hook_ativo' | 'hook_tipo' | 'hook_texto' | 'hook_som_entrada' | 'hook_som_saida' | 'musica_fundo' | 'musica_modo'>>) => void
   onRandomTitle: () => void
   onOverlaysChanged?: () => void
   onRefreshVideos?: () => void
@@ -119,7 +119,13 @@ export default function ConfigPanel({
     api.narrationVoices()
       .then(vs => { setNarrationVoices(vs); setVoiceListLoaded(true) })
       .catch(() => { setVoiceListLoaded(false) })
+    api.listMusic()
+      .then(ms => setMusicList(ms))
+      .catch(() => {})
   }, [])
+
+  // ── Músicas Virais ──────────────────────────────────────────────
+  const [musicList, setMusicList] = useState<MusicItem[]>([])
 
   // ── Tarja ──────────────────────────────────────────────────
   const tarja = video?.tarja ?? TARJA_DEFAULT
@@ -673,6 +679,133 @@ export default function ConfigPanel({
             })}
           </div>
         )}
+      </div>
+
+      {/* Hook (gancho de 3s) */}
+      <div className="space-y-1">
+        <label className="text-muted text-[11px]">Hook (gancho de 3s)</label>
+        <button
+          onClick={() => onChange({ hook_ativo: !video.hook_ativo })}
+          className={`w-full flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium rounded-md border transition-all cursor-pointer ${
+            video.hook_ativo
+              ? 'bg-accent/20 border-accent text-accent'
+              : 'bg-card2 border-border text-muted hover:text-white hover:border-muted'
+          }`}
+          title="Insere um gancho de 3 segundos antes do vídeo (blur, textão ou corte seco)"
+        >
+          <span className="text-base">⚡</span>
+          <span>Gancho</span>
+          <span className="ml-auto text-[9px] uppercase tracking-wide">
+            {video.hook_ativo ? 'ON' : 'OFF'}
+          </span>
+        </button>
+
+        {video.hook_ativo && (
+          <div className="space-y-1.5 pt-1">
+            {/* Tipo de hook */}
+            <div className="space-y-1">
+              <label className="text-muted text-[10px]">Estilo Visual do Gancho</label>
+              <select
+                value={video.hook_tipo ?? 'textao'}
+                onChange={e => onChange({ hook_tipo: e.target.value })}
+                className="w-full bg-card2 border border-border rounded-md px-2 py-1.5 text-xs text-white outline-none focus:border-accent transition-colors cursor-pointer"
+              >
+                <option value="textao">Textão (full HD + letras grandes)</option>
+                <option value="corte_seco">Corte Seco (zoom + impacto)</option>
+              </select>
+            </div>
+
+            {/* Texto personalizado */}
+            <div className="space-y-1">
+              <label className="text-muted text-[10px]">Texto do Gancho (3s)</label>
+              <input
+                className="w-full bg-card2 border border-border rounded-md px-2 py-1.5 text-xs text-white outline-none focus:border-accent transition-colors"
+                placeholder="Texto do gancho (ex: OLHA ISSO!)"
+                value={video.hook_texto ?? ''}
+                onChange={e => onChange({ hook_texto: e.target.value })}
+              />
+            </div>
+
+            {/* Efeitos sonoros */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-muted text-[10px]">Som de Entrada (t=0s)</label>
+                <select
+                  value={video.hook_som_entrada ?? 'none'}
+                  onChange={e => onChange({ hook_som_entrada: e.target.value })}
+                  className="w-full bg-card2 border border-border rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-accent transition-colors cursor-pointer"
+                >
+                  <option value="none">🔇 Sem som</option>
+                  <option value="whoosh">Whoosh (💥 impacto)</option>
+                  <option value="camera">Câmera (📸 flash)</option>
+                  <option value="click">Click (🖱️ rápido)</option>
+                  <option value="notificacao">Pop (🔔 notificação)</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-muted text-[10px]">Som de Saída (t=3s)</label>
+                <select
+                  value={video.hook_som_saida ?? 'whoosh'}
+                  onChange={e => onChange({ hook_som_saida: e.target.value })}
+                  className="w-full bg-card2 border border-border rounded-md px-2 py-1.5 text-[11px] text-white outline-none focus:border-accent transition-colors cursor-pointer"
+                >
+                  <option value="none">🔇 Sem som</option>
+                  <option value="whoosh">Whoosh (💥 transição)</option>
+                  <option value="camera">Câmera (📸 flash)</option>
+                  <option value="click">Click (🖱️ rápido)</option>
+                  <option value="notificacao">Pop (🔔 notificação)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Trilha Sonora (Música Viral) */}
+      <div className="space-y-1.5 pt-1 border-t border-border/50">
+        <label className="text-muted text-[11px] flex items-center gap-1 font-medium text-white">
+          <Music size={12} className="text-accent" />
+          <span>Trilha Sonora Viral</span>
+        </label>
+        <div className="space-y-1.5 bg-card/40 p-2 rounded-md border border-border/60">
+          <select
+            value={video.musica_fundo ?? 'none'}
+            onChange={e => onChange({ musica_fundo: e.target.value })}
+            className="w-full bg-card2 border border-border rounded-md px-2 py-1.5 text-xs text-white outline-none focus:border-accent transition-colors cursor-pointer"
+          >
+            <option value="none">🔇 Sem música de fundo</option>
+            {musicList.map(m => (
+              <option key={m.id} value={m.file}>🎵 {m.label}</option>
+            ))}
+          </select>
+
+          {video.musica_fundo && video.musica_fundo !== 'none' && (
+            <div className="flex gap-1 pt-0.5">
+              <button
+                onClick={() => onChange({ musica_modo: '100_musica' })}
+                className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium border transition-all cursor-pointer ${
+                  (video.musica_modo ?? '100_musica') === '100_musica'
+                    ? 'bg-accent/20 border-accent text-accent font-semibold'
+                    : 'bg-card2 border-border text-muted hover:text-white'
+                }`}
+                title="Muta o áudio original do vídeo e toca apenas a música + narração"
+              >
+                100% Música (Sem Áudio Original)
+              </button>
+              <button
+                onClick={() => onChange({ musica_modo: '50_50' })}
+                className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium border transition-all cursor-pointer ${
+                  video.musica_modo === '50_50'
+                    ? 'bg-accent/20 border-accent text-accent font-semibold'
+                    : 'bg-card2 border-border text-muted hover:text-white'
+                }`}
+                title="Mixa a música com 30% e 100% do áudio original do vídeo"
+              >
+                30% Música / 100% Original
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tarja (cobre marca d'água) */}

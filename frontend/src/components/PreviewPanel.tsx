@@ -19,26 +19,24 @@ const _W = 1080, _H = 1920, _VSCALE = 0.937
 
 function framePlacement(nW: number, nH: number, videoY: number): CSSProperties {
   const isH = nW > nH
-  let dispW: number, dispH: number, left: number, top: number
+  let dispW: number, dispH: number
   if (!isH) {
-    // Portrait: scale height to VSCALE of phone, width auto
     dispH = _VSCALE * _H
     dispW = dispH * (nW / nH)
-    top  = (_H - dispH) / 2 + videoY
-    left = (_W - dispW) / 2
   } else {
-    // Landscape: scale width to VSCALE of phone, height auto
     dispW = _VSCALE * _W
     dispH = dispW * (nH / nW)
-    left = (_W - dispW) / 2
-    top  = (_H - dispH) / 2 + videoY
   }
+  const wPct = (dispW / _W) * 100
+  const hPct = (dispH / _H) * 100
+  const yOff = (videoY / _H) * 100
   return {
     position: 'absolute',
-    left:   `${(left / _W) * 100}%`,
-    top:    `${(top / _H) * 100}%`,
-    width:  `${(dispW / _W) * 100}%`,
-    height: `${(dispH / _H) * 100}%`,
+    left: '50%',
+    top: `calc(50% + ${yOff}%)`,
+    width: `${wPct}%`,
+    height: `${hPct}%`,
+    transform: 'translate(-50%, -50%)',
   }
 }
 
@@ -213,7 +211,7 @@ export default function PreviewPanel({ video, overlay, onChange }: Props) {
         <img
           src={api.frameUrl(video.url)}
           alt="frame"
-          className="object-cover pointer-events-none transition-opacity duration-200"
+          className="object-cover pointer-events-none"
           style={{
             ...(aspect ? framePlacement(aspect.w, aspect.h, video.video_y ?? 0) : { position: 'absolute', inset: 0, width: '100%', height: '100%' }),
             opacity: frameReady && aspect ? 1 : 0,
