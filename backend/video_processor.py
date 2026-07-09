@@ -778,6 +778,14 @@ def proximo_titulo() -> str:
     _titulo_index += 1
     return t
 
+_gancho_index = 0
+
+def proximo_gancho() -> str:
+    global _gancho_index
+    g = HOOK_PRESETS[_gancho_index % len(HOOK_PRESETS)]
+    _gancho_index += 1
+    return g
+
 # ── Download ──────────────────────────────────────────────────────────────────
 
 def _ydl_opts(**kw) -> dict:

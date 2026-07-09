@@ -240,6 +240,10 @@ export default function App() {
               overlays={overlays}
               onChange={handleUpdate}
               onRandomTitle={handleRandomTitle}
+              onRandomHook={async () => {
+                const { hook } = await api.randomHook()
+                handleUpdate({ hook_texto: hook })
+              }}
               onOverlaysChanged={refreshOverlays}
               onRefreshVideos={refreshVideos}
               onToast={toast}

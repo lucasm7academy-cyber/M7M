@@ -247,6 +247,7 @@ export const api = {
   },
   deleteOverlay: (key: string)              => req<{ok:boolean;deleted:string}>('DELETE', `/api/overlays/${key}`),
   randomTitle: ()                           => req<{title:string}>('GET', '/api/titles/random'),
+  randomHook:  ()                           => req<{hook:string}>('GET', '/api/hooks/random'),
   // Pastas (destino do upload no Drive)
   listPastas:  ()                           => req<PastasResponse>('GET', '/api/pastas'),
   addPasta:    (nome: string, drive_link: string) => req<Pasta>('POST', '/api/pastas', { nome, drive_link }),

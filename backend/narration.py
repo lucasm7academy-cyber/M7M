@@ -191,6 +191,29 @@ def gerar_wav(texto: str, voice_id: str = "padrao") -> str | None:
     - voice_id == 'padrao' (ou vazio): usa Piper (TTS local)
     - voice_id == id de voz XTTS:   usa voz_ai (porta 8095)
     """
+    import json
+    import tempfile
+    
+    mapa_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "preset_audios", "mapa_audios.json")
+    if os.path.exists(mapa_path):
+        try:
+            with open(mapa_path, "r", encoding="utf-8") as f:
+                mapa = json.load(f)
+            if texto in mapa:
+                preset_mp3 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend", mapa[texto])
+                if os.path.exists(preset_mp3):
+                    print(f"[TTS] Usando audio preset para: {texto}")
+                    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".wav", prefix="tts_preset_")
+                    os.close(tmp_fd)
+                    subprocess.run([
+                        "ffmpeg", "-y", "-loglevel", "error",
+                        "-i", preset_mp3, "-filter:a", "volume=2dB",
+                        "-c:a", "pcm_s16le", tmp_path
+                    ], capture_output=True)
+                    return tmp_path
+        except Exception as e:
+            print(f"[TTS] Erro ao ler preset: {e}")
+
     if not voice_id or voice_id == "padrao":
         wav = gerar_wav_titulo(texto)
     else:

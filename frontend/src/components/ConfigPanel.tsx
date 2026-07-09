@@ -43,6 +43,7 @@ interface Props {
   overlays: OverlayInfo[]
   onChange: (patch: Partial<Pick<VideoItem, 'title' | 'video_y' | 'overlay' | 'font' | 'title_y' | 'filtro' | 'cor_titulo' | 'titulo_borda' | 'tarja' | 'narrar_titulo' | 'travar_inicio' | 'narrations' | 'gerar_legenda' | 'estilo_legenda' | 'hook_ativo' | 'hook_tipo' | 'hook_texto' | 'hook_som_entrada' | 'hook_som_saida' | 'musica_fundo' | 'musica_modo'>>) => void
   onRandomTitle: () => void
+  onRandomHook?: () => void
   onOverlaysChanged?: () => void
   onRefreshVideos?: () => void
   onToast?: (msg: string, color?: 'green' | 'red' | 'yellow') => void
@@ -53,6 +54,7 @@ export default function ConfigPanel({
   overlays,
   onChange,
   onRandomTitle,
+  onRandomHook,
   onOverlaysChanged,
   onRefreshVideos,
   onToast,
@@ -718,12 +720,23 @@ export default function ConfigPanel({
             {/* Texto personalizado */}
             <div className="space-y-1">
               <label className="text-muted text-[10px]">Texto do Gancho (3s)</label>
-              <input
-                className="w-full bg-card2 border border-border rounded-md px-2 py-1.5 text-xs text-white outline-none focus:border-accent transition-colors"
-                placeholder="Texto do gancho (ex: OLHA ISSO!)"
-                value={video.hook_texto ?? ''}
-                onChange={e => onChange({ hook_texto: e.target.value })}
-              />
+              <div className="flex gap-1.5">
+                <input
+                  className="flex-1 min-w-0 bg-card2 border border-border rounded-md px-2 py-1.5 text-xs text-white outline-none focus:border-accent transition-colors"
+                  placeholder="Texto do gancho (ex: OLHA ISSO!)"
+                  value={video.hook_texto ?? ''}
+                  onChange={e => onChange({ hook_texto: e.target.value })}
+                />
+                {onRandomHook && (
+                  <button
+                    onClick={onRandomHook}
+                    className="px-2 py-1.5 bg-card2 hover:bg-border border border-border rounded-md text-muted hover:text-white transition-all cursor-pointer shrink-0"
+                    title="Gancho aleatório"
+                  >
+                    <Shuffle size={12} />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Efeitos sonoros */}

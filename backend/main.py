@@ -696,7 +696,13 @@ def delete_overlay(key: str):
 
 @app.get("/api/titles/random")
 def random_title():
+    from video_processor import proximo_titulo
     return {"title": proximo_titulo()}
+
+@app.get("/api/hooks/random")
+def random_hook():
+    from video_processor import proximo_gancho
+    return {"hook": proximo_gancho()}
 
 
 @app.get("/api/frame")
