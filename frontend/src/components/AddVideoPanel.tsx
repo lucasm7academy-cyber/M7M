@@ -22,7 +22,7 @@ export default function AddVideoPanel({ onAddUrl, onSearch, searching }: Props) 
   }
 
   return (
-    <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+    <div className="card p-5 space-y-4">
       <h2 className="text-white font-semibold text-sm">Adicionar vídeos</h2>
 
       {/* URL direta */}

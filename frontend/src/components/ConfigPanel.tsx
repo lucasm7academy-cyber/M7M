@@ -41,7 +41,7 @@ const ESTILOS_LEGENDA: { key: string; label: string; desc: string }[] = [
 interface Props {
   video:    VideoItem | null
   overlays: OverlayInfo[]
-  onChange: (patch: Partial<Pick<VideoItem, 'title' | 'video_y' | 'overlay' | 'font' | 'title_y' | 'filtro' | 'cor_titulo' | 'titulo_borda' | 'tarja' | 'narrar_titulo' | 'travar_inicio' | 'narrations' | 'gerar_legenda' | 'estilo_legenda' | 'hook_ativo' | 'hook_tipo' | 'hook_texto' | 'hook_som_entrada' | 'hook_som_saida' | 'musica_fundo' | 'musica_modo'>>) => void
+  onChange: (patch: Partial<Pick<VideoItem, 'title' | 'video_y' | 'overlay' | 'font' | 'title_y' | 'filtro' | 'cor_titulo' | 'titulo_borda' | 'tarja' | 'narrar_titulo' | 'travar_inicio' | 'narrations' | 'gerar_legenda' | 'estilo_legenda' | 'hook_ativo' | 'hook_tipo' | 'hook_texto' | 'hook_som_entrada' | 'hook_som_saida' | 'musica_fundo' | 'musica_modo' | 'voice'>>) => void
   onRandomTitle: () => void
   onRandomHook?: () => void
   onOverlaysChanged?: () => void
@@ -115,12 +115,11 @@ export default function ConfigPanel({
 
   // ── Vozes de narração ───────────────────────────────────────────
   const [narrationVoices, setNarrationVoices] = useState<NarrationVoice[]>([])
-  const [voiceListLoaded, setVoiceListLoaded] = useState(false)
 
   useEffect(() => {
     api.narrationVoices()
-      .then(vs => { setNarrationVoices(vs); setVoiceListLoaded(true) })
-      .catch(() => { setVoiceListLoaded(false) })
+      .then(vs => { setNarrationVoices(vs) })
+      .catch(() => {})
     api.listMusic()
       .then(ms => setMusicList(ms))
       .catch(() => {})
@@ -285,7 +284,7 @@ export default function ConfigPanel({
 
   if (!video) {
     return (
-      <div className="bg-card rounded-xl border border-border p-4 flex flex-col items-center justify-center min-h-[180px]">
+      <div className="card p-4 flex flex-col items-center justify-center min-h-[180px]">
         <span className="text-3xl mb-2">🎯</span>
         <p className="text-muted text-xs text-center">Selecione um vídeo na fila<br />para configurar</p>
       </div>
@@ -295,7 +294,7 @@ export default function ConfigPanel({
   const selectedVoice = video?.voice || 'padrao'
 
   return (
-    <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+    <div className="card p-4 space-y-3">
       <h2 className="text-white font-semibold text-sm">Configurações do vídeo</h2>
 
       {/* Título */}
@@ -553,7 +552,7 @@ export default function ConfigPanel({
       <div className="space-y-1">
         <label className="text-muted text-[11px]">Narrações personalizadas</label>
         <div className="space-y-2">
-          {(video.narrations ?? []).map((n, i) => (
+          {(video.narrations ?? []).map((n) => (
             <div key={n.id} className="bg-card2 border border-border rounded-md p-2 space-y-1.5">
               <div className="flex items-center gap-2">
                 <textarea

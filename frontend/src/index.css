@@ -11,17 +11,39 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  background: #0f1117;
-  color: #e2e8f0;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 0% -10%, rgba(91,141,239,0.10), transparent 55%),
+    radial-gradient(1000px 500px at 100% 0%, rgba(139,92,246,0.08), transparent 55%),
+    #0b0d13;
+  color: #e6e9f2;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Roboto', sans-serif;
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 #root { min-height: 100vh; }
 
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #1a1d27; }
-::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 3px; }
+::selection { background: rgba(91,141,239,0.35); color: #fff; }
+
+/* Foco consistente em toda a app (acessibilidade + identidade) */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #5b8def;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #262b3a; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #36405a; }
+
+/* Utilitários de componente */
+@layer components {
+  .card {
+    @apply bg-card rounded-2xl border border-border shadow-card;
+  }
+}
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }

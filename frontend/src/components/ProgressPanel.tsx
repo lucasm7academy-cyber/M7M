@@ -111,7 +111,7 @@ export default function ProgressPanel({ videos, processing, batchStartedAt, batc
   }
 
   return (
-    <div className="bg-card rounded-xl border border-border p-5 space-y-3">
+    <div className="card p-5 space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-white font-semibold text-sm">Progresso</h2>
         <div className="flex items-center gap-3">

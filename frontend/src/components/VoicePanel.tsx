@@ -119,10 +119,10 @@ export default function VoicePanel({ onToast }: Props) {
 
   return (
     <div className="flex-1 overflow-y-auto p-4">
-      <div className="max-w-5xl mx-auto grid grid-cols-[320px_1fr] gap-4">
+      <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
 
         {/* ── Coluna de configuração ── */}
-        <div className="bg-card rounded-xl border border-border p-4 space-y-4 h-fit">
+        <div className="card p-4 space-y-4 h-fit">
           <div className="flex items-center gap-2">
             <Mic2 size={16} className="text-accent" />
             <h2 className="text-white font-semibold text-sm">Vozes</h2>
@@ -255,7 +255,7 @@ export default function VoicePanel({ onToast }: Props) {
         </div>
 
         {/* ── Coluna principal: texto + player ── */}
-        <div className="bg-card rounded-xl border border-border p-4 space-y-3 flex flex-col">
+        <div className="card p-4 space-y-3 flex flex-col">
           <div className="flex items-center justify-between">
             <h2 className="text-white font-semibold text-sm">Texto</h2>
             <button

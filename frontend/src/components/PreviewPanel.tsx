@@ -152,7 +152,7 @@ export default function PreviewPanel({ video, overlay, onChange }: Props) {
 
   if (!video) {
     return (
-      <div className="bg-card rounded-xl border border-border p-4 flex flex-col items-center justify-center min-h-[180px]">
+      <div className="card p-4 flex flex-col items-center justify-center min-h-[180px]">
         <span className="text-3xl mb-2">📱</span>
         <p className="text-muted text-xs text-center">Selecione um vídeo<br />para ver o preview</p>
       </div>
@@ -185,7 +185,7 @@ export default function PreviewPanel({ video, overlay, onChange }: Props) {
   }
 
   return (
-    <div className="bg-card rounded-xl border border-border p-3 flex flex-col items-center gap-2">
+    <div className="card p-3 flex flex-col items-center gap-2">
       <h2 className="text-white font-semibold text-sm self-start">Preview</h2>
 
       {/* "Telefone" — proporção 9:16 fixa */}

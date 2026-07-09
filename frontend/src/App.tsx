@@ -205,36 +205,38 @@ export default function App() {
   const selectedVideo = selected !== null ? (videos[selected] ?? null) : null
 
   return (
-    <div className="flex flex-col h-screen bg-bg overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden">
       <Header gpu={gpu} processing={processing} queueCount={videos.filter(v => !v.processado && (v.status === 'na_fila' || v.status === 'editando')).length} onProcess={handleProcess} onOpenPastas={() => setFolderPanelOpen(true)} pastaVersion={pastaVersion} />
 
       {/* Abas */}
-      <div className="flex items-center gap-1.5 px-4 pt-3 shrink-0">
-        <button
-          onClick={() => setTab('video')}
-          className={`px-4 py-1.5 rounded-lg text-sm font-semibold border transition-all cursor-pointer ${
-            tab === 'video' ? 'bg-accent/20 border-accent text-accent' : 'bg-card border-border text-muted hover:text-white'
-          }`}
-        >🎬 Vídeo</button>
-        <button
-          onClick={() => setTab('voz')}
-          className={`px-4 py-1.5 rounded-lg text-sm font-semibold border transition-all cursor-pointer ${
-            tab === 'voz' ? 'bg-accent/20 border-accent text-accent' : 'bg-card border-border text-muted hover:text-white'
-          }`}
-        >🎙️ Voz</button>
+      <div className="flex items-center gap-1 px-4 pt-3 shrink-0">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-card border border-border">
+          <button
+            onClick={() => setTab('video')}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+              tab === 'video' ? 'bg-brand-gradient text-white shadow-glow' : 'text-muted hover:text-white'
+            }`}
+          >🎬 Vídeo</button>
+          <button
+            onClick={() => setTab('voz')}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+              tab === 'voz' ? 'bg-brand-gradient text-white shadow-glow' : 'text-muted hover:text-white'
+            }`}
+          >🎙️ Voz</button>
+        </div>
       </div>
 
       {tab === 'video' && (
-      <div className="flex flex-1 gap-4 p-4 overflow-hidden">
+      <div className="flex flex-col xl:flex-row flex-1 gap-4 p-4 overflow-y-auto xl:overflow-hidden">
         {/* Left */}
-        <div className="flex flex-col gap-4 w-[460px] shrink-0 overflow-hidden">
+        <div className="flex flex-col gap-4 w-full xl:w-[460px] xl:shrink-0 xl:overflow-hidden">
           <AddVideoPanel onAddUrl={handleAddUrl} onSearch={handleSearch} searching={searching} />
           <VideoQueue videos={videos} selectedIdx={selected} onSelect={setSelected} onDelete={handleDelete} onRefresh={refreshVideos} />
         </div>
 
         {/* Right */}
-        <div className="flex flex-col gap-4 flex-1 overflow-y-auto">
-          <div className="grid grid-cols-[7fr_3fr] gap-4">
+        <div className="flex flex-col gap-4 flex-1 xl:overflow-y-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-4">
             <ConfigPanel
               video={selectedVideo}
               overlays={overlays}

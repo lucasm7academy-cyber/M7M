@@ -75,7 +75,7 @@ export default function VideoQueue({ videos, selectedIdx, onSelect, onDelete, on
     }
   }
   return (
-    <div className="flex-1 bg-card rounded-xl border border-border flex flex-col min-h-0">
+    <div className="flex-1 card flex flex-col min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <span className="text-white font-semibold text-sm">

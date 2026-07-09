@@ -8,7 +8,7 @@ interface Props {
 
 export default function ClipsPanel({ clips, onRefresh }: Props) {
   return (
-    <div className="bg-card rounded-xl border border-border p-5 space-y-3">
+    <div className="card p-5 space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-white font-semibold text-sm flex items-center gap-2">
           <Film size={14} className="text-accent" />

@@ -1,6 +1,6 @@
-import { Cpu, Zap, PlayCircle, Loader2, FolderOpen, ChevronDown } from 'lucide-react'
+import { Cpu, Zap, PlayCircle, Loader2, FolderOpen, ChevronDown, Clapperboard } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
-import { api, type Pasta } from '../api'
+import { api, type Pasta, type GpuStatus } from '../api'
 
 interface Props {
   gpu:          GpuStatus | null
@@ -42,13 +42,15 @@ export default function Header({ gpu, processing, queueCount, onProcess, onOpenP
   }
 
   return (
-    <header className="flex items-center justify-between px-6 h-16 bg-card border-b border-border shrink-0">
+    <header className="flex items-center justify-between px-6 h-16 bg-card/80 backdrop-blur border-b border-border shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-3">
-        <span className="text-2xl">🎬</span>
+        <div className="grid place-items-center w-9 h-9 rounded-xl bg-brand-gradient shadow-glow">
+          <Clapperboard size={18} className="text-white" />
+        </div>
         <div>
-          <h1 className="text-white font-bold text-lg leading-none">Video Editor</h1>
-          <p className="text-muted text-xs mt-0.5">Download · Overlay · Título</p>
+          <h1 className="text-white font-bold text-lg leading-none tracking-tight">MoviePy <span className="text-accent">Studio</span></h1>
+          <p className="text-muted text-[11px] mt-0.5">Download · Overlay · Título · Narração</p>
         </div>
       </div>
 
@@ -114,7 +116,7 @@ export default function Header({ gpu, processing, queueCount, onProcess, onOpenP
           className={`flex items-center gap-2 px-5 py-2 rounded-lg font-semibold text-sm transition-all ${
             processing || queueCount === 0
               ? 'bg-muted/30 text-muted cursor-not-allowed'
-              : 'bg-accent hover:bg-accent/80 text-white cursor-pointer'
+              : 'bg-brand-gradient hover:opacity-90 text-white shadow-glow cursor-pointer'
           }`}
         >
           {processing

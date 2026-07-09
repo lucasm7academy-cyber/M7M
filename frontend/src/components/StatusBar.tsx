@@ -11,7 +11,7 @@ const colors = {
 
 export default function StatusBar({ message, color = 'green' }: Props) {
   return (
-    <div className="flex items-center gap-2 px-4 py-2.5 bg-card rounded-xl border border-border">
+    <div className="flex items-center gap-2 px-4 py-2.5 card">
       <span className={`text-base ${colors[color]} animate-pulse-dot`}>●</span>
       <span className="text-sm text-slate-300">{message}</span>
     </div>

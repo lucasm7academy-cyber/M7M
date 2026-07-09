@@ -24,7 +24,7 @@ class ProgressSocket {
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
     this.ws = new WebSocket(`${proto}://${window.location.host}/ws/progress`)
     this.ws.onmessage = (msg) => {
-      try { onEvent(JSON.parse(msg.data) as WsEvent) } catch {}
+      try { onEvent(JSON.parse(msg.data) as WsEvent) } catch { /* ignora frames inválidos */ }
     }
     this.ws.onclose = () => {
       // reconnect after 2s
