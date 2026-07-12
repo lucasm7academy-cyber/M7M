@@ -913,8 +913,16 @@ def montar_ranking(ranking: dict, emit) -> str | None:
     try:
         emit({"type": "status", "value": "aplicando_overlays"})
         
-        # Calculate timings
-        durations = [_get_video_duration(p) for p in item_paths]
+        # Calculate timings directly from the config trim fields (extremely fast and robust)
+        durations = []
+        for item in itens_ordenados:
+            t_in = float(item.get("trim_inicio_s") or 0.0)
+            t_out = float(item.get("trim_fim_s") or 10.0)
+            d = t_out - t_in
+            if d <= 0:
+                d = 10.0
+            durations.append(d)
+            
         timings = []
         current_time = 0.0
         
@@ -981,7 +989,7 @@ def montar_ranking(ranking: dict, emit) -> str | None:
                 inputs += ["-loop", "1", "-i", sidelist_path]
                 out_node = f"ov_sd_{idx}"
                 filter_nodes.append(
-                    f"[{curr_in}][{next_input_idx}:v]overlay=0:0:enable='between(t,{start_t:.3f},{end_t:.3f})'[{out_node}]"
+                    f"[{curr_in}][{next_input_idx}:v]overlay=0:0:shortest=1:enable='between(t,{start_t:.3f},{end_t:.3f})'[{out_node}]"
                 )
                 curr_in = out_node
                 next_input_idx += 1

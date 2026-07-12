@@ -955,7 +955,7 @@ async function createTestPresetRanking() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        titulo_geral: "Ranking de Teste 🏆",
+        titulo_geral: "RANKING BESTS PLAYS VALORANT",
         quantidade: 3,
         ordem: "decrescente"
       })
@@ -965,36 +965,49 @@ async function createTestPresetRanking() {
     const newRanking = await res.json();
     const rankingId = newRanking.id;
 
-    const testVideoUrl = "https://www.youtube.com/watch?v=h4NzUoUVi38";
+    // PATCH extra options to set overlay 3, title color Rosa, esquema_cores roxo_verde, and title_y 240
+    const patchRes = await fetch(`${API_URL}/api/ranking/${rankingId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        overlay: "3",
+        cor_titulo: "Rosa",
+        esquema_cores: "roxo_verde",
+        title_y: 240
+      })
+    });
+    if (!patchRes.ok) throw new Error("Erro ao aplicar configurações no ranking");
+
+    const testVideoUrl = "https://www.youtube.com/watch?v=MwhIoaBa2Lg";
     const presetItems = [
       {
         posicao: 3,
-        titulo_item: "Item de Teste 3",
-        trim_inicio_s: 0.0,
-        trim_fim_s: 5.0,
+        titulo_item: "HS MARSTERCLASS",
+        trim_inicio_s: 68.1,
+        trim_fim_s: 81.7,
         video_y: 150,
-        narracao_texto: "Este é o item número três do nosso teste",
+        narracao_texto: "",
         transicao_tipo: "fade_preto",
-        transicao_sfx: "whoosh"
+        transicao_sfx: "click"
       },
       {
         posicao: 2,
-        titulo_item: "Item de Teste 2",
-        trim_inicio_s: 5.0,
-        trim_fim_s: 10.0,
+        titulo_item: "PROPLAYER LV",
+        trim_inicio_s: 52.1,
+        trim_fim_s: 65.3,
         video_y: 150,
-        narracao_texto: "Seguindo em frente, aqui está o item número dois",
-        transicao_tipo: "slide_up",
-        transicao_sfx: "camera"
+        narracao_texto: "",
+        transicao_tipo: "fade_preto",
+        transicao_sfx: "click"
       },
       {
         posicao: 1,
-        titulo_item: "Item de Teste 1",
-        trim_inicio_s: 10.0,
-        trim_fim_s: 15.0,
+        titulo_item: "HACKER LV",
+        trim_inicio_s: 205.6,
+        trim_fim_s: 230.2,
         video_y: 150,
-        narracao_texto: "E por fim, o grande vencedor do nosso teste",
-        transicao_tipo: "slide_left",
+        narracao_texto: "",
+        transicao_tipo: "fade_preto",
         transicao_sfx: "click"
       }
     ];
@@ -1012,14 +1025,7 @@ async function createTestPresetRanking() {
           narracao_texto: item.narracao_texto,
           transicao_tipo: item.transicao_tipo,
           transicao_sfx: item.transicao_sfx,
-          tarja: {
-            ativo: true,
-            texto: item.titulo_item,
-            x: 0.35,
-            y: 0.45,
-            w: 0.30,
-            h: 0.07
-          }
+          tarja: null
         })
       });
       if (!itemRes.ok) throw new Error(`Erro ao salvar item ${item.posicao}`);
