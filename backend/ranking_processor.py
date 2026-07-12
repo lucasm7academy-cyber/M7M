@@ -272,9 +272,10 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
         pass
 
     # Download do trecho
+    print(f"   ├─ [Fase 1/4 - Download] Baixando trecho de {inicio}s a {fim}s (Duração: {fim-inicio:.1f}s)...")
     raw = baixar_trecho(link, inicio, fim)
-    if not raw:
-        return None
+    if raw:
+        print(f"   ├─ [Fase 1/4 - Download] ✔️ Trecho baixado com sucesso.")
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     vid_id = _video_id_from_url(link, idx)
@@ -312,6 +313,7 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
     scale_h = int(HEIGHT * VIDEO_SCALE_RATIO_VERTICAL)
     pad_y = (HEIGHT - scale_h) // 2 + video_y
 
+    print(f"   ├─ [Fase 2/4 - Composição] Ajustando escala e desfoque de fundo (9:16)...")
     filtros: list[str] = []
     inputs: list[str] = ["ffmpeg", "-y", "-loglevel", "error", "-i", raw]
     i = 1
@@ -476,10 +478,12 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
             except OSError: pass
 
     # Normaliza loudness
+    print(f"   ├─ [Fase 3/4 - Áudio] Normalizando volume do clipe...")
     norm = normalizar_audio(out_path)
     if norm and os.path.exists(norm):
         os.replace(norm, out_path)
 
+    print(f"   └─ [Fase 4/4 - Concluído] ✔️ Item #{posicao} finalizado com sucesso!")
     return out_path
 
 
@@ -883,9 +887,16 @@ def montar_ranking(ranking: dict, emit) -> str | None:
     ordem = ranking.get("ordem", "decrescente")
     itens_ordenados = sorted(itens, key=lambda x: x.get("posicao", 0), reverse=(ordem == "decrescente"))
 
+    print("\n" + "="*80)
+    print(f"[PROCESSADOR] 🚀 INICIANDO RANKING: '{ranking.get('titulo_geral')}'")
+    print(f"[PROCESSADOR] Qtd: {len(itens_ordenados)} itens | Ordem: {ordem} | Overlay: {ranking.get('overlay')} | Cores: {ranking.get('esquema_cores')}")
+    print("="*80 + "\n")
+
     item_paths: list[str] = []
     for i, item in enumerate(itens_ordenados):
         try:
+            pos = item.get("posicao")
+            print(f"[RANKING] [Item {i+1}/{len(itens_ordenados)}] Iniciando processamento do Item #{pos}: '{item.get('titulo_item')}'")
             emit({"type": "item_iniciado", "posicao": item.get("posicao"), "idx": i})
             p = montar_item(ranking, item, item.get("posicao", i + 1), i, emit)
             if not p:
@@ -898,6 +909,7 @@ def montar_ranking(ranking: dict, emit) -> str | None:
             emit({"type": "item_erro", "posicao": item.get("posicao"), "message": str(e)})
             return None
 
+    print(f"\n[RANKING] 🔄 Todos os itens processados. Iniciando emenda e transições...")
     emit({"type": "status", "value": "concatenando"})
     global_sfx = ranking.get("transicao_sfx", "none")
     final = concatenar_ranking(
@@ -911,6 +923,7 @@ def montar_ranking(ranking: dict, emit) -> str | None:
 
     # ── Layered Transitions Overlay Step ──
     try:
+        print(f"[RANKING] 🎨 Aplicando Overlays em Camadas (Overlay Mask + Título Geral + Side Lists)...")
         emit({"type": "status", "value": "aplicando_overlays"})
         
         # Calculate timings directly from the config trim fields (extremely fast and robust)
@@ -1017,6 +1030,7 @@ def montar_ranking(ranking: dict, emit) -> str | None:
                 
         if r_comp.returncode == 0 and os.path.exists(temp_out):
             os.replace(temp_out, final)
+            print(f"[RANKING] ✔️ Overlays e textos aplicados com sucesso!")
         else:
             err = r_comp.stderr.decode("utf-8", errors="replace") if r_comp.stderr else ""
             print(f"[ranking] layered overlay composition falhou: {err}")
@@ -1027,6 +1041,7 @@ def montar_ranking(ranking: dict, emit) -> str | None:
     hook = ranking.get("hook")
     if hook and hook.get("ativo"):
         try:
+            print(f"[RANKING] 🎬 Adicionando gancho/introdução de título...")
             item_like = {
                 "title": ranking.get("titulo_geral", ""),
                 "hook_tipo": hook.get("tipo", "textao"),
@@ -1044,6 +1059,7 @@ def montar_ranking(ranking: dict, emit) -> str | None:
     # Narração do título geral
     if ranking.get("narrar_titulo_geral") and ranking.get("titulo_geral"):
         try:
+            print(f"[RANKING] 🎙️ Gerando e mixando narração do título geral...")
             wav = narration.gerar_wav(ranking["titulo_geral"], "padrao")
             if wav:
                 _mix_narracao_simples(final, wav)
@@ -1056,6 +1072,7 @@ def montar_ranking(ranking: dict, emit) -> str | None:
     outro = ranking.get("outro")
     if outro and outro.get("estilo") not in (None, "none"):
         try:
+            print(f"[RANKING] 📺 Adicionando encerramento/Outro...")
             _adicionar_outro(final, outro.get("texto", RANKING_OUTRO_DEFAULT_TEXTO))
         except Exception as e:
             print(f"[ranking] outro erro: {e}")
@@ -1064,6 +1081,7 @@ def montar_ranking(ranking: dict, emit) -> str | None:
     musica = ranking.get("trilha_fundo")
     if musica and musica != "none":
         try:
+            print(f"[RANKING] 🎵 Mixando trilha de fundo '{musica}'...")
             _adicionar_trilha_fundo(final, musica, ranking.get("trilha_modo", "50_50"))
         except Exception as e:
             print(f"[ranking] trilha erro: {e}")
@@ -1073,6 +1091,7 @@ def montar_ranking(ranking: dict, emit) -> str | None:
     if legenda.get("ativa"):
         try:
             estilo = legenda.get("estilo", "AMARELO_CLASSICO")
+            print(f"[RANKING] 📝 Aplicando legenda automática (Whisper - Estilo: {estilo})...")
             emit({"type": "status", "value": "legendando"})
             ok = subtitles.aplicar_legenda(final, estilo)
             if not ok:
@@ -1082,6 +1101,7 @@ def montar_ranking(ranking: dict, emit) -> str | None:
 
     # CTA Outro Final ('já segue nois ai' + Plinnnn)
     try:
+        print(f"[RANKING] 🔉 Adicionando áudio CTA final...")
         from video_processor import adicionar_cta_final_audio
         adicionar_cta_final_audio(final)
     except Exception as e:
@@ -1089,10 +1109,15 @@ def montar_ranking(ranking: dict, emit) -> str | None:
 
     # Normalização final de loudness
     try:
+        print(f"[RANKING] 🔊 Normalizando volume do vídeo final...")
         norm = normalizar_audio(final)
         if norm and os.path.exists(norm):
             os.replace(norm, final)
     except Exception as e:
         print(f"[ranking] normalização final falhou: {e}")
 
+    print("\n" + "="*80)
+    print(f"[PROCESSADOR] 🎉 RANKING CONCLUÍDO COM SUCESSO!")
+    print(f"[PROCESSADOR] Arquivo Final: {final}")
+    print("="*80 + "\n")
     return final
