@@ -5,8 +5,8 @@
 /* Fontes do título — espelham backend/config.py FONTS */
 @font-face { font-family: 'tf-padrao';     src: url('/fonts/padrao.ttf')     format('truetype'); font-weight: bold; font-display: swap; }
 @font-face { font-family: 'tf-manuscrita'; src: url('/fonts/manuscrita.ttf') format('truetype'); font-weight: bold; font-display: swap; }
-@font-face { font-family: 'tf-estilo1';    src: url('/fonts/anton.ttf')      format('truetype'); font-display: swap; }
-@font-face { font-family: 'tf-estilo2';    src: url('/fonts/bebas.ttf')      format('truetype'); font-display: swap; }
+@font-face { font-family: 'tf-estilo1';    src: url('/fonts/times.ttf')      format('truetype'); font-display: swap; }
+@font-face { font-family: 'tf-estilo2';    src: url('/fonts/arial.ttf')      format('truetype'); font-display: swap; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 

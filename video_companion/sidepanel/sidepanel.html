@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>M7 Video Companion</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <div class="app-layout">
+        <!-- Left Column: Controls & Form -->
+        <div class="controls-column">
+          <!-- Header -->
+          <header class="hero">
+            <div class="hero-brand">
+              <img class="hero-logo" src="../icons/icon-128.png" width="40" height="40" alt="" decoding="async" />
+              <div class="hero-titles">
+                <h1>M7 Video Companion</h1>
+                <div class="version-row">
+                  <span class="version-tag">v1.0.0</span>
+                  <span class="version-sep">·</span>
+                  <span class="brand-by">by</span>
+                  <span class="brand-link">Google Antigravity</span>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <!-- Connection status & Settings -->
+          <div class="conn-bar" id="connBar">
+            <span class="conn-dot" id="connDot"></span>
+            <span class="conn-msg" id="connMsg">Verificando API...</span>
+            <div style="display: flex; gap: 4px;">
+              <button type="button" class="btn-icon-only" id="btnOpenTab" title="Abrir em Nova Guia">↗️</button>
+              <button type="button" class="btn-icon-only" id="toggleSettings" title="Configurações da API">⚙️</button>
+            </div>
+          </div>
+
+          <div class="settings-panel collapsible collapsed" id="settingsPanel">
+            <div class="field">
+              <label for="apiUrlInput" class="field-label">Endereço da API</label>
+              <div class="input-row">
+                <input type="text" id="apiUrlInput" value="http://localhost:8090" placeholder="http://localhost:8090" spellcheck="false" />
+                <button type="button" id="saveSettingsBtn" class="btn btn-primary">Salvar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pasta do Drive (Destino) -->
+          <section class="section-card" id="driveFolderSection">
+            <div class="field">
+              <label for="driveFolderSelect" class="field-label">Pasta de Destino (Google Drive)</label>
+              <select id="driveFolderSelect" class="select-field">
+                <option value="">Carregando pastas...</option>
+              </select>
+            </div>
+          </section>
+
+          <!-- YouTube Grabber (Video Atual Detectado) -->
+          <section class="section-card" id="activeMediaSection">
+            <h2 class="section-title">📺 Vídeo Atual Detectado</h2>
+
+            <div id="noVideoMsg" class="alert-box alert-info">
+              Nenhum vídeo do YouTube ou Reels detectado na aba ativa. Navegue no YouTube para capturar.
+            </div>
+
+            <div id="videoDetails" class="video-details-container" style="display: none;">
+              <!-- Thumbnail & Quick Info -->
+              <div class="media-preview-row">
+                <div class="media-thumb-container">
+                  <img id="mediaThumb" src="" alt="Thumbnail" />
+                </div>
+                <div class="media-meta">
+                  <span class="media-source" id="mediaSource">YouTube</span>
+                  <div class="media-title-display" id="mediaTitleDisplay">Título do vídeo</div>
+                </div>
+              </div>
+
+              <!-- Grabber Fields -->
+              <div class="item-form-grid">
+                <div class="field">
+                  <label class="field-label">Link do Vídeo</label>
+                  <input type="text" id="itemUrlInput" readonly class="input-readonly" />
+                </div>
+
+                <button type="button" id="btnAddVideo" class="btn btn-primary btn-glow" style="width: 100%; margin-top: 6px;">Adicionar à Fila 📥</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Single Videos Queue List -->
+          <section class="section-card">
+            <div class="section-header">
+              <h2 class="section-title">📋 Fila de Vídeos</h2>
+              <button type="button" id="btnRefreshQueue" class="btn-icon-only" title="Atualizar Fila">↻</button>
+            </div>
+            
+            <div id="noVideosInQueueMsg" class="alert-box alert-warn">
+              Nenhum vídeo na fila. Capture um vídeo acima para começar.
+            </div>
+
+            <div id="videoQueueList" class="positions-list" style="display: none; margin-bottom: 10px;">
+              <!-- Dynamically populated list of single videos in the queue -->
+            </div>
+
+            <button type="button" id="btnProcessQueue" class="btn btn-primary btn-glow" style="width: 100%; display: none;">Processar Fila 🎬</button>
+          </section>
+
+          <!-- Selected Video Configurations -->
+          <section class="section-card" id="selectedVideoConfig" style="display: none;">
+            <h2 class="section-title" style="color: var(--cyan);">⚙️ Configurações do Vídeo Selecionado</h2>
+
+            <div class="item-form-grid" style="margin-top: 10px;">
+              <div class="field">
+                <label for="videoTitleInput" class="field-label">Título do Vídeo</label>
+                <input type="text" id="videoTitleInput" placeholder="Título do vídeo" spellcheck="true" />
+              </div>
+
+              <!-- Trim Controls (Double Range Slider) -->
+              <div class="field" style="margin-top: 4px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <label class="field-label">Corte do Vídeo (Tempo de Duração)</label>
+                  <span class="range-value" id="trimValDisplay" style="font-family: monospace; font-weight: 700; color: var(--cyan); font-size: 12px;">0.0s - 10.0s</span>
+                </div>
+                <div class="double-slider-container">
+                  <div class="double-slider-track-bg">
+                    <div class="double-slider-track-fill" id="trimTrackFill"></div>
+                  </div>
+                  <input type="range" id="trimInicioSlider" min="0" max="180" step="0.1" value="0" class="range-input" />
+                  <input type="range" id="trimFimSlider" min="0" max="180" step="0.1" value="10" class="range-input" />
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label for="overlaySelect" class="field-label">Máscara / Overlay</label>
+                  <select id="overlaySelect" class="select-field">
+                    <option value="">Nenhum / Sem máscara</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="colorSelect" class="field-label">Cor do Título</label>
+                  <select id="colorSelect" class="select-field">
+                    <option value="Branco">Branco</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label for="fontSelect" class="field-label">Fonte do Título</label>
+                  <select id="fontSelect" class="select-field">
+                    <option value="Padrão">Padrão</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="filterSelect" class="field-label">Filtro de Vídeo</label>
+                  <select id="filterSelect" class="select-field">
+                    <option value="Nenhum">Nenhum</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label for="voiceSelect" class="field-label">Voz da Narração</label>
+                  <select id="voiceSelect" class="select-field">
+                    <option value="padrao">Padrão</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="musicSelect" class="field-label">Trilha de Fundo</label>
+                  <select id="musicSelect" class="select-field">
+                    <option value="none">Nenhuma</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field" style="margin-top: 4px;">
+                <label class="checkbox-container" style="display: flex; align-items: center; gap: 8px; color: var(--text); cursor: pointer; user-select: none;">
+                  <input type="checkbox" id="narrarTituloCheckbox" />
+                  <span>Narrar Título Automaticamente</span>
+                </label>
+              </div>
+
+              <div class="field" style="margin-top: 6px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <label for="videoYInput" class="field-label">Posição Vertical do Vídeo</label>
+                  <span id="videoYVal" style="font-family: monospace; font-weight: 700; color: var(--cyan); font-size: 12px;">0px</span>
+                </div>
+                <input type="range" id="videoYInput" min="-800" max="800" value="0" step="10" class="slider" />
+              </div>
+
+              <div class="field" style="margin-top: 4px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <label for="titleYInput" class="field-label">Altura do Título Geral</label>
+                  <span id="titleYVal" style="font-family: monospace; font-weight: 700; color: var(--brand-violet); font-size: 12px;">220px</span>
+                </div>
+                <input type="range" id="titleYInput" min="50" max="700" value="220" step="5" class="slider" />
+              </div>
+
+              <!-- Legend Settings -->
+              <div class="field" style="border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px;">
+                <label class="checkbox-container" style="display: flex; align-items: center; gap: 8px; color: var(--text); cursor: pointer; user-select: none;">
+                  <input type="checkbox" id="legendCheckbox" style="cursor: pointer;" />
+                  <span>Gerar Legenda Automática</span>
+                </label>
+              </div>
+
+              <div class="field" id="legendStyleField" style="display: none; margin-top: 4px;">
+                <label for="legendStyleSelect" class="field-label">Estilo da Legenda</label>
+                <select id="legendStyleSelect" class="select-field">
+                  <option value="AMARELO_CLASSICO">Amarelo Clássico (palavra atual destacada)</option>
+                  <option value="POP_BRANCO">Pop Branco</option>
+                  <option value="BOX_HORMOZI">Box Hormozi</option>
+                  <option value="NEON_VERDE">Neon Verde</option>
+                </select>
+              </div>
+
+              <!-- Custom Narrations (Collapsible) -->
+              <details class="advanced-details" style="margin-top: 4px; border-top: 1px solid var(--border); padding-top: 8px;">
+                <summary class="advanced-summary" style="font-size: 11.5px; font-weight: bold; color: var(--text);">🎙️ Narrações Personalizadas</summary>
+                <div class="advanced-content" style="padding: 8px; display: flex; flex-direction: column; gap: 10px;">
+                  <div id="narrationsList" style="display: flex; flex-direction: column; gap: 12px;">
+                    <!-- List of narration blocks dynamically generated -->
+                  </div>
+                  <button type="button" id="btnAddNarration" class="btn btn-secondary" style="width: 100%; margin-top: 4px;">+ Adicionar Bloco de Narração</button>
+                </div>
+              </details>
+
+              <!-- Hook Configurations (Collapsible) -->
+              <details class="advanced-details" style="margin-top: 4px; border-top: 1px solid var(--border); padding-top: 8px;">
+                <summary class="advanced-summary" style="font-size: 11.5px; font-weight: bold; color: var(--text);">Configurações de Gancho (Hook 3s)</summary>
+                <div class="advanced-content" style="padding: 8px; display: flex; flex-direction: column; gap: 8px;">
+                  <div class="field">
+                    <label class="checkbox-container" style="display: flex; align-items: center; gap: 8px; color: var(--text); cursor: pointer; user-select: none;">
+                      <input type="checkbox" id="hookAtivoCheckbox" />
+                      <span>Gancho Ativo (primeiros 3 segundos)</span>
+                    </label>
+                  </div>
+                  <div id="hookFieldsContainer" style="display: none; flex-direction: column; gap: 8px;">
+                    <div class="field">
+                      <label for="hookTextoInput" class="field-label">Texto do Gancho</label>
+                      <input type="text" id="hookTextoInput" placeholder="Ex: Assista até o final!" />
+                    </div>
+                    <div class="field">
+                      <label for="hookTipoSelect" class="field-label">Estilo Visual</label>
+                      <select id="hookTipoSelect" class="select-field">
+                        <!-- Hook styles populated dynamically -->
+                      </select>
+                    </div>
+                    <div class="field-row">
+                      <div class="field">
+                        <label for="hookSomEntradaSelect" class="field-label">Som de Entrada (t=0s)</label>
+                        <select id="hookSomEntradaSelect" class="select-field">
+                          <!-- Hook sounds populated dynamically -->
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label for="hookSomSaidaSelect" class="field-label">Som de Saída (t=3s)</label>
+                        <select id="hookSomSaidaSelect" class="select-field">
+                          <!-- Hook sounds populated dynamically -->
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+              <!-- Tarja Configurations (Collapsible) -->
+              <details class="advanced-details" style="margin-top: 4px; border-top: 1px solid var(--border); padding-top: 8px;">
+                <summary class="advanced-summary" style="font-size: 11.5px; font-weight: bold; color: var(--text);">Tarja (Cobrir Marca d'água)</summary>
+                <div class="advanced-content" style="padding: 8px; display: flex; flex-direction: column; gap: 8px;">
+                  <div class="field">
+                    <label class="checkbox-container" style="display: flex; align-items: center; gap: 8px; color: var(--text); cursor: pointer; user-select: none;">
+                      <input type="checkbox" id="tarjaAtivaCheckbox" />
+                      <span>Tarja Ativa</span>
+                    </label>
+                  </div>
+                  <div id="tarjaFieldsContainer" style="display: none; flex-direction: column; gap: 8px;">
+                    <div class="field">
+                      <label for="tarjaTextoInput" class="field-label">Texto da Tarja</label>
+                      <input type="text" id="tarjaTextoInput" placeholder="Deixe vazio para tarja preta limpa" />
+                    </div>
+                    <div class="field-row">
+                      <div class="field">
+                        <label for="tarjaXInput" class="field-label">Posição X</label>
+                        <input type="number" id="tarjaXInput" step="0.01" min="0" max="1" value="0.35" class="select-field" style="background: var(--surface-el); border: 1px solid var(--border); color: #fff; padding: 6px; border-radius: 4px;" />
+                      </div>
+                      <div class="field">
+                        <label for="tarjaYInput" class="field-label">Posição Y</label>
+                        <input type="number" id="tarjaYInput" step="0.01" min="0" max="1" value="0.45" class="select-field" style="background: var(--surface-el); border: 1px solid var(--border); color: #fff; padding: 6px; border-radius: 4px;" />
+                      </div>
+                    </div>
+                    <div class="field-row">
+                      <div class="field">
+                        <label for="tarjaWInput" class="field-label">Largura W</label>
+                        <input type="number" id="tarjaWInput" step="0.01" min="0" max="1" value="0.30" class="select-field" style="background: var(--surface-el); border: 1px solid var(--border); color: #fff; padding: 6px; border-radius: 4px;" />
+                      </div>
+                      <div class="field">
+                        <label for="tarjaHInput" class="field-label">Altura H</label>
+                        <input type="number" id="tarjaHInput" step="0.01" min="0" max="1" value="0.07" class="select-field" style="background: var(--surface-el); border: 1px solid var(--border); color: #fff; padding: 6px; border-radius: 4px;" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </section>
+        </div>
+
+        <!-- Right Column: Sticky Live Preview Box -->
+        <div class="preview-column" id="livePreviewArea" style="display: none;">
+          <div class="section-card" style="padding: 10px; align-items: center;">
+            <div class="field-label" style="margin-bottom: 6px; align-self: flex-start; display: flex; justify-content: space-between; width: 100%; align-items: center;">
+              <span>Visualização (9:16)</span>
+              <span id="previewLoadingBadge" style="color: var(--cyan); font-size: 9px; display: none;">Carregando...</span>
+            </div>
+            
+            <div class="live-preview-container" id="livePreviewContainer">
+              <!-- gradient background -->
+              <div class="live-preview-bg"></div>
+              <!-- YouTube Fallback Thumbnail -->
+              <img id="livePreviewFallback" src="" alt="Thumbnail" class="live-preview-fallback" />
+              <!-- HD Frame from Backend -->
+              <img id="livePreviewFrame" src="" alt="Video Frame" class="live-preview-frame" style="opacity: 0;" />
+              <!-- Overlay mask -->
+              <img id="livePreviewOverlay" src="" alt="Overlay" class="live-preview-overlay" style="display: none;" />
+              <!-- General Title -->
+              <div id="livePreviewTitle" class="live-preview-title"></div>
+              <!-- Tarja box -->
+              <div id="livePreviewTarja" class="live-preview-tarja" style="display: none;" title="Arraste para mover · puxe o canto para redimensionar">
+                <span id="livePreviewTarjaText" class="live-preview-tarja-text"></span>
+                <div id="livePreviewTarjaResize" class="live-preview-tarja-resize"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Frame Preview Modal -->
+    <div id="previewContainer" class="preview-overlay" style="display: none;">
+      <div class="preview-card">
+        <div class="preview-header">
+          <span class="preview-title" id="previewTitle">Frame Preview</span>
+          <button type="button" id="closePreviewBtn" class="btn-close">&times;</button>
+        </div>
+        <div class="preview-body">
+          <div class="preview-loading" id="previewLoading">Gerando frame do YouTube...</div>
+          <img id="previewImg" src="" alt="Frame Preview" style="display: none; width: 100%; border-radius: 8px;" />
+        </div>
+      </div>
+    </div>
+
+    <footer class="dev-footer">
+      M7 Video Companion · <a class="dev-link" href="http://localhost:5174" target="_blank">Acessar Web App</a>
+    </footer>
+
+    <script src="sidepanel.js" defer></script>
+  </body>
+</html>

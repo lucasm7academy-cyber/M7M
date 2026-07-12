@@ -10,6 +10,7 @@ MASK_CENTER_Y = 1115
 # 0.90 = reduz a escala para que vídeos horizontais e verticais
 # fiquem menores e suas laterais não sejam cortadas pelo overlay.
 VIDEO_SCALE_RATIO_VERTICAL = 0.937
+VIDEO_SCALE_RATIO_HORIZONTAL = 1.65
 
 TITLE_FONT_SIZE  = 56   # px sobre 1080 largura ≈ 5.2% (espelhado no preview)
 TITLE_WIDTH_RATIO = 0.85
@@ -63,8 +64,8 @@ TARJA_DEFAULT = {
 FONTS = {
     "Padrão":     "DejaVuSans-Bold.ttf",
     "Manuscrita": "Caveat-Bold.ttf",
-    "Estilo 1":   "Anton-Regular.ttf",       # impacto, condensada pesada
-    "Estilo 2":   "BebasNeue-Regular.ttf",   # alta condensada (caixa alta)
+    "Estilo 1":   "times.ttf",       # estilo Times New Roman pontuda
+    "Estilo 2":   "arial.ttf",       # estilo Roboto (Arial)
 }
 FONT_DEFAULT = "Padrão"
 
@@ -320,4 +321,23 @@ HOOK_SOM_OPCOES = ["whoosh", "camera", "click", "notificacao", "none"]
 HOOK_SOM_ENTRADA_DEFAULT = "notificacao"
 HOOK_SOM_SAIDA_DEFAULT = "whoosh"
 HOOK_FADE_DUR_S = 0.15
+
+# ── Ranking (Top N) ────────────────────────────────────────────────────────────
+RANKING_QUANTIDADES       = [3, 4, 5]
+RANKING_ORDEM_DEFAULT      = "decrescente"   # 5 → 1 (topo primeiro)
+RANKING_DURACAO_FIXA_DEFAULT      = 12.0     # s por item (modo "fixa")
+RANKING_DURACAO_TOPO_PROP        = 18.0     # s do item #1 (modo "proporcional")
+RANKING_DURACAO_BASE_PROP       = 8.0      # s dos demais (modo "proporcional")
+RANKING_TRANSICOES        = ["flash", "zoom_corte", "glitch"]
+RANKING_TRANSICAO_DEFAULT = "nenhum"
+RANKING_TRANSICAO_DUR_S   = 0.15           # duração da transição
+RANKING_BADGE_FONT_SIZE   = 150            # px sobre 1080 largura
+RANKING_BADGE_COR         = "#FFD400"
+RANKING_OUTRO_DEFAULT_TEXTO = "Curte e segue para mais!"
+RANKING_OUTRO_ESTILOS     = ["none", "textao"]
+RANKING_OUTRO_DEFAULT     = "none"
+RANKING_BADGE_PAD_S       = 0.12           # proporção da largura p/ margem do badge
+RANKING_BADGE_TOP_FRAC    = 0.12           # fração da altura p/ posição do badge
+RANKING_TARGET_LUFS       = -14.0          # normalização de loudness (loudnorm)
+RANKING_FPS               = 30
 

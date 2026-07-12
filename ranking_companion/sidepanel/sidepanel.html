@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MoviePy Ranking Companion</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <div class="app-layout">
+        <!-- Left Column: Controls & Form -->
+        <div class="controls-column">
+          <!-- Header -->
+          <header class="hero">
+            <div class="hero-brand">
+              <img class="hero-logo" src="../icons/icon-128.png" width="40" height="40" alt="" decoding="async" />
+              <div class="hero-titles">
+                <h1>MoviePy Companion</h1>
+                <div class="version-row">
+                  <span class="version-tag">v1.1.0</span>
+                  <span class="version-sep">·</span>
+                  <span class="brand-by">by</span>
+                  <span class="brand-link">Google Antigravity</span>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <!-- Connection status & Settings -->
+          <div class="conn-bar" id="connBar">
+            <span class="conn-dot" id="connDot"></span>
+            <span class="conn-msg" id="connMsg">Verificando API...</span>
+            <div style="display: flex; gap: 4px;">
+              <button type="button" class="btn-icon-only" id="btnOpenTab" title="Abrir em Nova Guia">↗️</button>
+              <button type="button" class="btn-icon-only" id="toggleSettings" title="Configurações da API">⚙️</button>
+            </div>
+          </div>
+
+          <div class="settings-panel collapsible collapsed" id="settingsPanel">
+            <div class="field">
+              <label for="apiUrlInput" class="field-label">Endereço da API</label>
+              <div class="input-row">
+                <input type="text" id="apiUrlInput" value="http://localhost:8090" placeholder="http://localhost:8090" spellcheck="false" />
+                <button type="button" id="saveSettingsBtn" class="btn btn-primary">Salvar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ranking Selector & Create Panel -->
+          <section class="section-card">
+            <div class="field">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label for="rankingSelect" class="field-label">Selecionar o Ranking</label>
+                <div style="display: flex; gap: 4px;">
+                  <button type="button" class="btn-icon-only" id="refreshRankingsBtn" title="Atualizar Rankings">↻</button>
+                  <button type="button" class="btn btn-secondary" id="btnToggleCreateRanking" style="padding: 2px 8px; font-size: 11px;">+ Novo</button>
+                </div>
+              </div>
+              <select id="rankingSelect" class="select-field">
+                <option value="">Carregando rankings...</option>
+              </select>
+            </div>
+
+            <!-- Quick Create Ranking Panel (Collapsible) -->
+            <div class="settings-panel collapsible collapsed" id="createRankingPanel" style="margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px;">
+              <h3 style="font-size: 12px; color: var(--cyan); margin-bottom: 6px;">Criar Novo Ranking</h3>
+              <div class="item-form-grid">
+                <div class="field">
+                  <label for="newRankingTitle" class="field-label">Título Geral</label>
+                  <input type="text" id="newRankingTitle" placeholder="Ex: Top 5 Gols" />
+                </div>
+                <div class="field-row">
+                  <div class="field">
+                    <label for="newRankingQty" class="field-label">Qtd. Itens</label>
+                    <select id="newRankingQty" class="select-field">
+                      <option value="3">3 Posições</option>
+                      <option value="5">5 Posições</option>
+                      <option value="7">7 Posições</option>
+                      <option value="10">10 Posições</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="newRankingOrder" class="field-label">Ordem</label>
+                    <select id="newRankingOrder" class="select-field">
+                      <option value="decrescente">Decrescente (3º → 1º)</option>
+                      <option value="crescente">Crescente (1º → 3º)</option>
+                    </select>
+                  </div>
+                </div>
+                <button type="button" id="btnSubmitCreateRanking" class="btn btn-primary" style="width: 100%; margin-top: 4px;">Criar Ranking 🌟</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- YouTube Grabber -->
+          <section class="section-card" id="activeMediaSection">
+            <h2 class="section-title">📺 Vídeo Atual Detectado</h2>
+
+            <div id="noVideoMsg" class="alert-box alert-info">
+              Nenhum vídeo do YouTube ou Reels detectado na aba ativa. Navegue no YouTube para capturar.
+            </div>
+
+            <div id="videoDetails" class="video-details-container" style="display: none;">
+              <!-- Thumbnail & Quick Info -->
+              <div class="media-preview-row">
+                <div class="media-thumb-container">
+                  <img id="mediaThumb" src="" alt="Thumbnail" />
+                </div>
+                <div class="media-meta">
+                  <span class="media-source" id="mediaSource">YouTube</span>
+                  <div class="media-title-display" id="mediaTitleDisplay">Título do vídeo</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Selected Ranking Configs -->
+          <section class="section-card" id="selectedRankingConfig" style="display: none;">
+            <div class="section-header">
+              <h2 class="section-title" style="color: var(--cyan);">⚙️ Configurações do Ranking</h2>
+              <button type="button" id="btnDeleteRanking" class="btn-icon-only btn-danger-text" title="Excluir Ranking">🗑️</button>
+            </div>
+
+            <div class="item-form-grid" style="margin-top: 10px;">
+              <div class="field">
+                <label for="globalTitleInput" class="field-label">Título Geral do Ranking</label>
+                <input type="text" id="globalTitleInput" placeholder="Ex: Melhores Gols do Ano" spellcheck="true" />
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label for="globalOverlaySelect" class="field-label">Máscara / Overlay Geral</label>
+                  <select id="globalOverlaySelect" class="select-field">
+                    <option value="">Nenhum / Padrão</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="globalColorSelect" class="field-label">Cor do Título</label>
+                  <select id="globalColorSelect" class="select-field">
+                    <option value="Branco">Branco</option>
+                    <option value="Amarelo">Amarelo</option>
+                    <option value="Preto">Preto</option>
+                    <option value="Vermelho">Vermelho</option>
+                    <option value="Verde">Verde</option>
+                    <option value="Azul">Azul</option>
+                    <option value="Rosa">Rosa</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="field">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <label for="globalTitleYInput" class="field-label">Altura do Título</label>
+                  <span id="globalTitleYVal" style="font-family: monospace; font-weight: 700; color: var(--cyan); font-size: 12px;">220px</span>
+                </div>
+                <input type="range" id="globalTitleYInput" min="50" max="700" value="220" step="5" class="slider" />
+              </div>
+            </div>
+          </section>
+
+          <!-- Edit Item Form (appears when clicking a card in positions list) -->
+          <section class="section-card" id="itemEditorSection" style="display: none;">
+            <div class="section-header">
+              <h2 class="section-title" id="itemEditorTitle" style="color: var(--cyan);">📝 Editar Posição #1</h2>
+              <button type="button" id="btnCancelEdit" class="btn-icon-only" title="Fechar Formulário">&times;</button>
+            </div>
+
+            <div class="video-details-container" style="margin-top: 10px;">
+              <div class="item-form-grid">
+                <div class="field">
+                  <label for="itemTitleInput" class="field-label">Título da Posição</label>
+                  <input type="text" id="itemTitleInput" placeholder="Ex: O chute de trivela" spellcheck="true" />
+                </div>
+
+                <div class="field">
+                  <label for="itemUrlInput" class="field-label">Link do Vídeo (YouTube)</label>
+                  <input type="text" id="itemUrlInput" placeholder="Link do vídeo ou use capturado acima" spellcheck="false" />
+                </div>
+
+                <!-- Trim Controls (Double Range Slider) -->
+                <div class="field" style="margin-top: 4px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label class="field-label">Recorte do Vídeo (Trecho)</label>
+                    <span class="range-value" id="trimValDisplay" style="font-family: monospace; font-weight: 700; color: var(--cyan); font-size: 12px;">0.0s - 10.0s</span>
+                  </div>
+                  <div class="double-slider-container">
+                    <div class="double-slider-track-bg">
+                      <div class="double-slider-track-fill" id="trimTrackFill"></div>
+                    </div>
+                    <input type="range" id="trimInicioSlider" min="0" max="180" step="0.1" value="0" class="range-input" />
+                    <input type="range" id="trimFimSlider" min="0" max="180" step="0.1" value="10" class="range-input" />
+                  </div>
+                </div>
+
+                <!-- Height Settings -->
+                <div class="field" style="margin-top: 6px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label for="videoYInput" class="field-label">Altura Vertical do Vídeo</label>
+                    <span id="videoYVal" style="font-family: monospace; font-weight: 700; color: var(--brand-violet); font-size: 12px;">0px</span>
+                  </div>
+                  <input type="range" id="videoYInput" min="-800" max="800" value="0" step="10" class="slider" />
+                </div>
+
+                <!-- Expandable Advanced Settings (Only Narration Text now) -->
+                <details class="advanced-details" style="margin-top: 4px;">
+                  <summary class="advanced-summary">Narração do Item (Opcional)</summary>
+                  <div class="advanced-content" style="padding: 8px;">
+                    <div class="field">
+                      <label for="narrationInput" class="field-label">Texto da Narração</label>
+                      <textarea id="narrationInput" rows="2" placeholder="Deixe em branco para narração automática do título do item..."></textarea>
+                    </div>
+                  </div>
+                </details>
+
+                <!-- Tarja Configurations (Collapsible) -->
+                <details class="advanced-details" style="margin-top: 4px; border-top: 1px solid var(--border); padding-top: 4px;">
+                  <summary class="advanced-summary">Tarja (Cobrir Marca d'água)</summary>
+                  <div class="advanced-content" style="padding: 8px; display: flex; flex-direction: column; gap: 8px;">
+                    <div class="field">
+                      <label class="checkbox-container" style="display: flex; align-items: center; gap: 8px; color: var(--text); cursor: pointer; user-select: none;">
+                        <input type="checkbox" id="tarjaAtivaCheckbox" />
+                        <span>Tarja Ativa</span>
+                      </label>
+                    </div>
+                    <div id="tarjaFieldsContainer" style="display: none; flex-direction: column; gap: 8px;">
+                      <div class="field">
+                        <label for="tarjaTextoInput" class="field-label">Texto da Tarja</label>
+                        <input type="text" id="tarjaTextoInput" placeholder="Deixe vazio para tarja preta limpa" />
+                      </div>
+                      <div class="field-row">
+                        <div class="field">
+                          <label for="tarjaXInput" class="field-label">Posição X</label>
+                          <input type="number" id="tarjaXInput" step="0.01" min="0" max="1" value="0.35" class="select-field" style="background: var(--surface-el); border: 1px solid var(--border); color: #fff; padding: 6px; border-radius: 4px;" />
+                        </div>
+                        <div class="field">
+                          <label for="tarjaYInput" class="field-label">Posição Y</label>
+                          <input type="number" id="tarjaYInput" step="0.01" min="0" max="1" value="0.45" class="select-field" style="background: var(--surface-el); border: 1px solid var(--border); color: #fff; padding: 6px; border-radius: 4px;" />
+                        </div>
+                      </div>
+                      <div class="field-row">
+                        <div class="field">
+                          <label for="tarjaWInput" class="field-label">Largura W</label>
+                          <input type="number" id="tarjaWInput" step="0.01" min="0" max="1" value="0.30" class="select-field" style="background: var(--surface-el); border: 1px solid var(--border); color: #fff; padding: 6px; border-radius: 4px;" />
+                        </div>
+                        <div class="field">
+                          <label for="tarjaHInput" class="field-label">Altura H</label>
+                          <input type="number" id="tarjaHInput" step="0.01" min="0" max="1" value="0.07" class="select-field" style="background: var(--surface-el); border: 1px solid var(--border); color: #fff; padding: 6px; border-radius: 4px;" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </section>
+
+          <!-- Ranking Positions List -->
+          <section class="section-card" id="rankingItemsSection">
+            <h2 class="section-title">📋 Itens e Posições do Ranking</h2>
+            <div id="noRankingSelectedMsg" class="alert-box alert-warn">
+              Selecione ou crie um ranking acima para visualizar as posições.
+            </div>
+
+            <div id="rankingItemsList" class="positions-list" style="display: none;">
+              <!-- Dynamically generated list of positions -->
+            </div>
+          </section>
+
+          <!-- Quick Actions (Drive Folder & Process button) -->
+          <section id="rankingActionsSection" class="section-card" style="display: none; padding: 12px;">
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div class="field" style="margin-bottom: 2px;">
+                <label for="driveFolderSelect" class="field-label">Pasta de Destino (Google Drive)</label>
+                <select id="driveFolderSelect" class="select-field">
+                  <option value="">Carregando pastas...</option>
+                </select>
+              </div>
+              <button type="button" id="btnProcessRanking" class="btn btn-primary btn-glow" style="width: 100%;">Gerar Vídeo do Ranking 🚀</button>
+            </div>
+          </section>
+        </div>
+
+        <!-- Right Column: Sticky Live Preview Box -->
+        <div class="preview-column" id="livePreviewArea" style="display: none;">
+          <div class="section-card" style="padding: 10px; align-items: center;">
+            <div class="field-label" style="margin-bottom: 6px; align-self: flex-start; display: flex; justify-content: space-between; width: 100%; align-items: center;">
+              <span>Visualização (9:16)</span>
+              <span id="previewLoadingBadge" style="color: var(--cyan); font-size: 9px; display: none;">Carregando...</span>
+            </div>
+            
+            <div class="live-preview-container" id="livePreviewContainer">
+              <!-- gradient background -->
+              <div class="live-preview-bg"></div>
+              <!-- YouTube Fallback Thumbnail -->
+              <img id="livePreviewFallback" src="" alt="Thumbnail" class="live-preview-fallback" />
+              <!-- HD Frame from Backend -->
+              <img id="livePreviewFrame" src="" alt="Video Frame" class="live-preview-frame" style="opacity: 0;" />
+              <!-- Overlay mask -->
+              <img id="livePreviewOverlay" src="" alt="Overlay" class="live-preview-overlay" style="display: none;" />
+              <!-- General Title -->
+              <div id="livePreviewTitle" class="live-preview-title"></div>
+              <!-- Rankings Item List Overlay -->
+              <div id="livePreviewItemsList" class="live-preview-items-list"></div>
+              <!-- Tarja box -->
+              <div id="livePreviewTarja" class="live-preview-tarja" style="display: none;" title="Arraste para mover · puxe o canto para redimensionar">
+                <span id="livePreviewTarjaText" class="live-preview-tarja-text"></span>
+                <div id="livePreviewTarjaResize" class="live-preview-tarja-resize"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Frame Preview Modal (kept just in case) -->
+    <div id="previewContainer" class="preview-overlay" style="display: none;">
+      <div class="preview-card">
+        <div class="preview-header">
+          <span class="preview-title" id="previewTitle">Frame Preview</span>
+          <button type="button" id="closePreviewBtn" class="btn-close">&times;</button>
+        </div>
+        <div class="preview-body">
+          <div class="preview-loading" id="previewLoading">Gerando frame do YouTube...</div>
+          <img id="previewImg" src="" alt="Frame Preview" style="display: none; width: 100%; border-radius: 8px;" />
+        </div>
+      </div>
+    </div>
+
+    <footer class="dev-footer">
+      MoviePy Companion · <a class="dev-link" href="http://localhost:5174" target="_blank">Acessar Web App</a>
+    </footer>
+
+    <script src="sidepanel.js" defer></script>
+  </body>
+</html>

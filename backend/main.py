@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import sys
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,11 @@ from video_processor import GPU_AVAILABLE, CODEC_VIDEO, processar_video, proximo
 from viral_fetcher import buscar_videos_virais
 import drive_uploader
 import pastas
+import ranking_processor as ranking_p
+from config import (
+    RANKING_QUANTIDADES, RANKING_ORDEM_DEFAULT, RANKING_DURACAO_FIXA_DEFAULT,
+    RANKING_TRANSICAO_DEFAULT, RANKING_OUTRO_DEFAULT_TEXTO, RANKING_OUTRO_DEFAULT,
+)
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
@@ -100,6 +106,10 @@ def _cleanup_local(clip_path: str | None, url: str | None) -> list[str]:
 lista_videos: list[dict] = []
 _queue_worker_task: asyncio.Task | None = None
 _processing = False  # mantido para compatibilidade
+
+# Ranking (Top N) — fila dedicada
+lista_rankings: list[dict] = []
+_ranking_worker_task: asyncio.Task | None = None
 
 # ── WebSocket manager ─────────────────────────────────────────────────────────
 
@@ -230,6 +240,130 @@ async def _background_queue_worker():
             await asyncio.sleep(5)
 
 
+# ── Worker de Ranking (fila dedicada) ──────────────────────────────────────────
+
+def _criar_ranking_emit(rk: dict):
+    """Cria emit sync que injeta ranking_id e id, e faz broadcast via loop do servidor."""
+    loop = asyncio.get_event_loop()
+    def emit(ev: dict):
+        ev = dict(ev)
+        ev["ranking_id"] = rk.get("id", "")
+        ev["id"] = rk.get("id", "")
+        try:
+            asyncio.run_coroutine_threadsafe(manager.broadcast(ev), loop)
+            if ev.get("type") == "item_iniciado":
+                prog = {
+                    "type": "ranking_progress",
+                    "id": rk.get("id", ""),
+                    "ranking_id": rk.get("id", ""),
+                    "atual": ev.get("posicao", 1),
+                    "total": len(rk.get("itens", [])),
+                }
+                asyncio.run_coroutine_threadsafe(manager.broadcast(prog), loop)
+        except Exception:
+            pass
+    return emit
+
+
+async def _background_ranking_worker():
+    """
+    Worker contínuo para rankings. Processa um ranking 'na_fila' por vez,
+    montando todos os itens e concatenando. Roda em paralelo à fila de vídeos.
+    """
+    import time as _time
+    PER_ITEM_TIMEOUT_S = 600
+
+    while True:
+        try:
+            rk = None
+            for cand in lista_rankings:
+                if cand.get("status") == "na_fila" and not cand.get("processado"):
+                    rk = cand
+                    break
+
+            if rk is None:
+                await asyncio.sleep(1)
+                continue
+
+            now_start = int(_time.time() * 1000)
+            rk["status"] = "processando"
+            rk["started_at"] = now_start
+            rk["finished_at"] = None
+            rk["elapsed_ms"] = None
+            emit_fn = _criar_ranking_emit(rk)
+            await manager.broadcast({
+                "type": "ranking_status", "id": rk["id"], "ranking_id": rk["id"],
+                "value": "processando", "started_at": now_start,
+            })
+            await manager.broadcast({"type": "ranking_iniciado", "id": rk["id"], "ranking_id": rk["id"]})
+
+            try:
+                path = await asyncio.wait_for(
+                    asyncio.to_thread(ranking_p.montar_ranking, rk, emit_fn),
+                    timeout=PER_ITEM_TIMEOUT_S * max(1, len(rk.get("itens", []))),
+                )
+            except asyncio.TimeoutError:
+                rk["status"] = "erro"
+                await manager.broadcast({"type": "ranking_error", "id": rk["id"], "ranking_id": rk["id"], "message": "timeout"})
+                await manager.broadcast({"type": "ranking_status", "id": rk["id"], "ranking_id": rk["id"], "value": "erro"})
+                continue
+            except Exception as e:
+                rk["status"] = "erro"
+                await manager.broadcast({"type": "ranking_error", "id": rk["id"], "ranking_id": rk["id"], "message": str(e)})
+                await manager.broadcast({"type": "ranking_status", "id": rk["id"], "ranking_id": rk["id"], "value": "erro"})
+                continue
+
+            if not path:
+                rk["status"] = "erro"
+                await manager.broadcast({"type": "ranking_error", "id": rk["id"], "ranking_id": rk["id"], "message": "Falha na geração final do vídeo"})
+                await manager.broadcast({"type": "ranking_status", "id": rk["id"], "ranking_id": rk["id"], "value": "erro"})
+                continue
+
+            rk["output_path"] = path
+            rk["processado"] = True
+
+            # Upload Drive
+            rk["status"] = "enviando_drive"
+            await manager.broadcast({
+                "type": "ranking_status", "id": rk["id"], "ranking_id": rk["id"],
+                "value": "enviando_drive",
+            })
+            await manager.broadcast({"type": "ranking_uploading", "id": rk["id"], "ranking_id": rk["id"]})
+            try:
+                pasta_dest = pastas.selecionada()
+                if pasta_dest and pasta_dest.get("drive_folder_id"):
+                    info = await asyncio.to_thread(drive_uploader.upload_para, pasta_dest["drive_folder_id"], path)
+                else:
+                    info = await asyncio.to_thread(drive_uploader.upload, path)
+                rk["drive_id"] = info["file_id"]
+                rk["drive_url"] = info["web_view_link"]
+                rk["status"] = "concluido"
+                now_end = int(_time.time() * 1000)
+                rk["finished_at"] = now_end
+                rk["elapsed_ms"] = now_end - now_start
+                await manager.broadcast({
+                    "type": "ranking_status", "id": rk["id"], "ranking_id": rk["id"],
+                    "value": "concluido", "drive_id": info["file_id"], "drive_url": info["web_view_link"],
+                    "elapsed_ms": rk["elapsed_ms"],
+                })
+                await manager.broadcast({
+                    "type": "ranking_done", "id": rk["id"], "ranking_id": rk["id"],
+                    "drive_id": info["file_id"], "drive_url": info["web_view_link"],
+                    "elapsed_ms": rk["elapsed_ms"],
+                })
+            except Exception as e:
+                rk["status"] = "erro_upload"
+                rk["upload_error"] = str(e)
+                await manager.broadcast({"type": "ranking_error", "id": rk["id"], "ranking_id": rk["id"], "message": str(e)})
+                await manager.broadcast({"type": "ranking_status", "id": rk["id"], "ranking_id": rk["id"], "value": "erro_upload"})
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[ranking-worker] erro inesperado: {e}")
+            await asyncio.sleep(5)
+
+
 # ── Modelos ───────────────────────────────────────────────────────────────────
 
 class AddVideoRequest(BaseModel):
@@ -250,6 +384,42 @@ class NarrationItem(BaseModel):
     start_sec:    float
     freeze:       bool = False
     legenda:      bool = False
+
+
+# ── Ranking (Top N) ────────────────────────────────────────────────────────────
+
+class RankingItemModel(BaseModel):
+    posicao:          int
+    link:             str = ""
+    duracao_original_s: float | None = None
+    trim_inicio_s:    float = 0.0
+    trim_fim_s:       float = 0.0
+    titulo_item:      str = ""
+    video_y:          int = 0
+    overlay:          str | None = None
+    filtro:           str = "Nenhum"
+    narracao_texto:   str | None = None
+    thumb_cache:      str | None = None
+    status_link:      str = "verificando"
+    tarja:            Tarja | None = None
+
+
+class RankingModel(BaseModel):
+    id:              str
+    titulo_geral:    str = ""
+    ordem:           str = "decrescente"
+    quantidade:      int = 3
+    duracao_modo:    str = "fixa"
+    duracao_fixa_s:  float = 12.0
+    transicao_tipo:  str = "flash"
+    transicao_sfx:   str = "none"
+    trilha_fundo:    str | None = None
+    trilha_modo:     str = "50_50"
+    hook:            dict | None = None
+    outro:           dict | None = None
+    legenda:         dict | None = None
+    status:          str = "editando"
+    itens:           list[dict] = []
 
 
 class UpdateVideoRequest(BaseModel):
@@ -275,6 +445,8 @@ class UpdateVideoRequest(BaseModel):
     hook_som_saida:  str             | None = None
     musica_fundo:    str             | None = None
     musica_modo:     str             | None = None
+    trim_inicio_s:   float           | None = None
+    trim_fim_s:      float           | None = None
 
 class SearchRequest(BaseModel):
     tema:       str
@@ -325,6 +497,8 @@ def add_video(req: AddVideoRequest):
         "hook_som_saida":   HOOK_SOM_SAIDA_DEFAULT,
         "musica_fundo":   "none",
         "musica_modo":    "100_musica",
+        "trim_inicio_s":  0.0,
+        "trim_fim_s":     duracao if (duracao and duracao > 0) else 12.0,
         "status":         "editando",
         "processado":     False,
     }
@@ -368,6 +542,8 @@ def update_video(idx: int, req: UpdateVideoRequest):
     if req.hook_som_saida   is not None: lista_videos[idx]["hook_som_saida"]   = req.hook_som_saida
     if req.musica_fundo    is not None: lista_videos[idx]["musica_fundo"]   = req.musica_fundo
     if req.musica_modo     is not None: lista_videos[idx]["musica_modo"]    = req.musica_modo
+    if req.trim_inicio_s   is not None: lista_videos[idx]["trim_inicio_s"]  = req.trim_inicio_s
+    if req.trim_fim_s      is not None: lista_videos[idx]["trim_fim_s"]     = req.trim_fim_s
     return lista_videos[idx]
 
 
@@ -499,8 +675,10 @@ async def retry_upload(idx: int):
             "type": "uploaded", "idx": idx,
             "drive_id": info["file_id"], "drive_url": info["web_view_link"],
         })
-        removidos = _cleanup_local(path, item.get("url"))
-        item["output_path"] = None
+        # [TESTE] Remoção de vídeos locais desabilitada
+        # removidos = _cleanup_local(path, item.get("url"))
+        # item["output_path"] = None
+        removidos = []
         await manager.broadcast({"type": "cleaned", "idx": idx,
                                  "removed": removidos})
         return {"ok": True, "drive_url": info["web_view_link"],
@@ -706,15 +884,15 @@ def random_hook():
 
 
 @app.get("/api/frame")
-def get_frame(url: str):
-    """Extrai (e cacheia) 1 frame do vídeo para o preview. Roda em threadpool
+def get_frame(url: str, t: float = 3.0):
+    """Extrai (e cacheia) 1 frame do vídeo para o tempo t no preview. Roda em threadpool
     (def sync) — não bloqueia a fila de processamento."""
     vid = _extrair_video_id(url)
     if not vid:
         raise HTTPException(400, "URL inválida")
-    cache = os.path.join(FRAMES_DIR, f"{vid}.jpg")
+    cache = os.path.join(FRAMES_DIR, f"{vid}_t{t:.1f}.jpg")
     if not os.path.exists(cache):
-        ok = extrair_frame(url, cache)
+        ok = extrair_frame(url, cache, t=t)
         if not ok or not os.path.exists(cache):
             raise HTTPException(404, "Frame indisponível")
     return FileResponse(cache, media_type="image/jpeg")
@@ -795,6 +973,253 @@ def list_music():
         if ext.lower() in exts:
             files.append({"id": name, "file": f, "label": name.replace("_", " ").title()})
     return sorted(files, key=lambda x: x["id"])
+# ── Ranking (Top N) ────────────────────────────────────────────────────────────
+
+class CreateRankingRequest(BaseModel):
+    titulo_geral:  str = ""
+    quantidade:    int = 3
+    ordem:         str = "decrescente"
+    overlay:       str | None = None
+    narrar_titulo_geral: bool = False
+    legendar_titulo_geral: bool = False
+
+
+@app.post("/api/ranking")
+def criar_ranking(req: CreateRankingRequest):
+    """Cria um ranking com N itens vazios (posições 1..N)."""
+    qtd = req.quantidade if req.quantidade in RANKING_QUANTIDADES else RANKING_QUANTIDADES[0]
+    itens = [{
+        "posicao": i + 1, "link": "", "duracao_original_s": None,
+        "trim_inicio_s": 0.0, "trim_fim_s": 0.0, "titulo_item": "",
+        "video_y": 0, "overlay": None, "filtro": "Nenhum",
+        "narracao_texto": None, "thumb_cache": None, "status_link": "verificando",
+        "tarja": dict(TARJA_DEFAULT),
+    } for i in range(qtd)]
+    rk = {
+        "id": str(uuid.uuid4()),
+        "titulo_geral": req.titulo_geral,
+        "ordem": req.ordem if req.ordem in ("decrescente", "crescente") else RANKING_ORDEM_DEFAULT,
+        "quantidade": qtd,
+        "overlay": None,
+        "narrar_titulo_geral": False,
+        "narrar_titulos_itens": False,
+        "gerar_legenda": False,
+        "legendar_titulo_geral": req.legendar_titulo_geral,
+        "transicao_tipo": RANKING_TRANSICAO_DEFAULT,
+        "transicao_sfx": "none",
+        "trilha_fundo": None,
+        "trilha_modo": "50_50",
+        "hook": None,
+        "outro": {"texto": RANKING_OUTRO_DEFAULT_TEXTO, "estilo": RANKING_OUTRO_DEFAULT},
+        "legenda": {"ativa": False, "estilo": "AMARELO_CLASSICO"},
+        "status": "editando",
+        "processado": False,
+        "itens": itens,
+        "title_y": 220,
+        "font": "Padrão",
+        "cor_titulo": "Branco",
+        "titulo_borda": True,
+        "itens_y": 538,
+    }
+    lista_rankings.append(rk)
+    return rk
+
+
+@app.get("/api/ranking")
+def listar_rankings():
+    return lista_rankings
+
+
+@app.get("/api/ranking/{rid}")
+def detalhe_ranking(rid: str):
+    rk = _buscar_ranking(rid)
+    if not rk:
+        raise HTTPException(404, "Ranking não encontrado")
+    return rk
+
+
+@app.patch("/api/ranking/{rid}")
+def editar_ranking(rid: str, req: dict):
+    rk = _buscar_ranking(rid)
+    if not rk:
+        raise HTTPException(404, "Ranking não encontrado")
+    campos = ["titulo_geral", "ordem", "quantidade", "overlay", "narrar_titulo_geral", "legendar_titulo_geral",
+              "narrar_titulos_itens", "transicao_tipo", "transicao_sfx", "trilha_fundo", "trilha_modo",
+              "hook", "outro", "legenda", "status", "title_y", "font", "cor_titulo", "titulo_borda", "itens_y"]
+    for c in campos:
+        if c in req and req[c] is not None:
+            rk[c] = req[c]
+            
+    # Ajustar quantidade de itens se alterou
+    if "quantidade" in req and req["quantidade"] is not None:
+        qtd = req["quantidade"]
+        itens = rk.get("itens", [])
+        if len(itens) > qtd:
+            rk["itens"] = itens[:qtd]
+        elif len(itens) < qtd:
+            for i in range(len(itens), qtd):
+                itens.append({
+                    "posicao": i + 1, "link": "", "duracao_original_s": None,
+                    "trim_inicio_s": 0.0, "trim_fim_s": 0.0, "titulo_item": "",
+                    "video_y": 0, "overlay": None, "filtro": "Nenhum",
+                    "narracao_texto": None, "thumb_cache": None, "status_link": "verificando",
+                    "tarja": dict(TARJA_DEFAULT),
+                })
+            rk["itens"] = itens
+
+    return rk
+
+
+@app.delete("/api/ranking/{rid}")
+def remover_ranking(rid: str):
+    global lista_rankings
+    rk = _buscar_ranking(rid)
+    if not rk:
+        raise HTTPException(404, "Ranking não encontrado")
+    lista_rankings = [r for r in lista_rankings if r["id"] != rid]
+    return {"ok": True}
+
+
+@app.post("/api/ranking/items/duracao")
+def ranking_item_duracao(req: dict):
+    """Recebe um link e devolve a duração (sem baixar)."""
+    link = (req.get("link") or "").strip()
+    if not link:
+        raise HTTPException(400, "link obrigatório")
+    dur = obter_duracao(link)
+    return {"duracao": dur}
+
+
+@app.post("/api/ranking/{rid}/items/{posicao}")
+def definir_item(rid: str, posicao: int, req: dict):
+    rk = _buscar_ranking(rid)
+    if not rk:
+        raise HTTPException(404, "Ranking não encontrado")
+    item = next((it for it in rk["itens"] if it["posicao"] == posicao), None)
+    if not item:
+        raise HTTPException(404, "Posição não encontrada")
+    old_link = item.get("link", "")
+    new_link = (req.get("link") or "").strip()
+    link_changed = bool(new_link and new_link != old_link)
+
+    for campo in ["link", "trim_inicio_s", "trim_fim_s", "titulo_item", "video_y",
+                  "overlay", "filtro", "narracao_texto", "thumb_cache"]:
+        if campo in req and req[campo] is not None:
+            item[campo] = req[campo]
+            
+    if "tarja" in req and req["tarja"] is not None:
+        item["tarja"] = req["tarja"]
+
+    # Valida link + busca duração
+    if new_link:
+        if link_changed or not item.get("duracao_original_s"):
+            dur = obter_duracao(new_link)
+            item["duracao_original_s"] = dur
+            item["status_link"] = "ok" if (dur and dur > 0) else "invalido"
+        else:
+            dur = item.get("duracao_original_s")
+
+        if link_changed:
+            item["trim_inicio_s"] = 0.0
+            item["trim_fim_s"] = float(dur) if dur else rk.get("duracao_fixa_s", 12.0)
+        else:
+            if not item["trim_fim_s"] or item["trim_fim_s"] <= item["trim_inicio_s"]:
+                item["trim_fim_s"] = float(dur) if dur else rk.get("duracao_fixa_s", 12.0)
+            elif dur and item["trim_fim_s"] > dur:
+                item["trim_fim_s"] = float(dur)
+    return item
+
+
+@app.patch("/api/ranking/{rid}/reorder")
+def reordenar_ranking(rid: str, req: dict):
+    """Recebe {'order': [pos1, pos2, ...]} — reatribui posições na nova ordem."""
+    rk = _buscar_ranking(rid)
+    if not rk:
+        raise HTTPException(404, "Ranking não encontrado")
+    nova_ordem = req.get("order") or []
+    if not nova_ordem:
+        return rk
+    por_pos = {it["posicao"]: it for it in rk["itens"]}
+    novos = []
+    for novo_idx, velha_pos in enumerate(nova_ordem, start=1):
+        it = por_pos.get(velha_pos)
+        if it:
+            it["posicao"] = novo_idx
+            novos.append(it)
+    if novos:
+        rk["itens"] = novos
+    return rk
+
+
+@app.post("/api/ranking/{rid}/queue")
+def enfileirar_ranking(rid: str):
+    rk = _buscar_ranking(rid)
+    if not rk:
+        raise HTTPException(404, "Ranking não encontrado")
+    rk["status"] = "na_fila"
+    rk["processado"] = False
+    return {"ok": True, "ranking": rk}
+
+
+@app.delete("/api/ranking/{rid}/queue")
+def desenfileirar_ranking(rid: str):
+    rk = _buscar_ranking(rid)
+    if not rk:
+        raise HTTPException(404, "Ranking não encontrado")
+    if rk.get("status") == "na_fila":
+        rk["status"] = "editando"
+    return {"ok": True, "ranking": rk}
+
+@app.post("/api/ranking/{rid}/reprocess")
+def reprocessar_ranking(rid: str):
+    """Reprocessa um ranking que já foi concluído ou falhou."""
+    rk = _buscar_ranking(rid)
+    if not rk:
+        raise HTTPException(404, "Ranking não encontrado")
+    
+    rk["status"] = "editando"
+    rk["processado"] = False
+    rk["output_path"] = None
+    rk["drive_id"] = None
+    rk["drive_url"] = None
+    rk["upload_error"] = None
+    if "outro" in rk:
+        rk["outro"]["estilo"] = "none"
+    
+    return {"ok": True, "ranking": rk}
+
+
+@app.post("/api/ranking/process")
+async def processar_rankings():
+    enfileirados = 0
+    for rk in lista_rankings:
+        if rk.get("status") == "editando" and not rk.get("processado"):
+            rk["status"] = "na_fila"
+            enfileirados += 1
+    return {"started": enfileirados > 0, "enfileirados": enfileirados, "total": len(lista_rankings)}
+
+
+@app.get("/api/ranking/{rid}/frame")
+def ranking_frame(rid: str, posicao: int = 1, t: float = 3.0):
+    """Frame de preview de um item (reaproveita extrair_frame no link)."""
+    rk = _buscar_ranking(rid)
+    if not rk:
+        raise HTTPException(404, "Ranking não encontrado")
+    item = next((it for it in rk["itens"] if it["posicao"] == posicao), None)
+    if not item or not item.get("link"):
+        raise HTTPException(400, "item sem link")
+    fd, out = tempfile.mkstemp(suffix=".jpg", prefix="rk_frame_")
+    os.close(fd)
+    if extrair_frame(item["link"], out, t):
+        return FileResponse(out, media_type="image/jpeg")
+    raise HTTPException(404, "Frame indisponível")
+
+
+def _buscar_ranking(rid: str) -> dict | None:
+    for rk in lista_rankings:
+        if rk["id"] == rid:
+            return rk
+    return None
 
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────
@@ -813,9 +1238,10 @@ async def ws_progress(ws: WebSocket):
 
 @app.on_event("startup")
 async def _start_worker():
-    global _queue_worker_task
+    global _queue_worker_task, _ranking_worker_task
     _queue_worker_task = asyncio.create_task(_background_queue_worker())
-    print("[worker] fila contínua iniciada")
+    _ranking_worker_task = asyncio.create_task(_background_ranking_worker())
+    print("[worker] fila contínua (vídeos + rankings) iniciada")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

@@ -10,6 +10,7 @@ import PreviewPanel  from './components/PreviewPanel'
 import ProgressPanel from './components/ProgressPanel'
 import StatusBar     from './components/StatusBar'
 import VoicePanel    from './components/VoicePanel'
+import RankingTab    from './ranking/RankingTab'
 import './index.css'
 
 interface Toast { id: number; msg: string; color: 'green'|'yellow'|'red' }
@@ -30,7 +31,7 @@ export default function App() {
   /** ms — duração total do último lote já encerrado */
   const [batchElapsedMs, setBatchElapsedMs] = useState<number | null>(null)
   /** aba ativa: editor de vídeo ou editor de voz */
-  const [tab, setTab] = useState<'video' | 'voz'>('video')
+  const [tab, setTab] = useState<'video' | 'voz' | 'ranking'>('video')
   const [folderPanelOpen, setFolderPanelOpen] = useState(false)
   const [pastaVersion, setPastaVersion] = useState(0)
 
@@ -55,7 +56,7 @@ export default function App() {
     refreshVideos()
     api.overlays().then(setOverlays).catch(() => {})
 
-    progressSocket.connect((e: WsEvent) => {
+    const unsubscribe = progressSocket.connect((e: WsEvent) => {
       setLastEvent(e)
       if (e.type === 'batch_started') {
         setBatchStartedAt(e.at)
@@ -138,7 +139,7 @@ export default function App() {
         toast(`⚠️ Upload falhou`, 'red')
       }
     })
-    return () => progressSocket.disconnect()
+    return unsubscribe
   }, [refreshVideos, toast])
 
   async function handleAddUrl(url: string) {
@@ -171,10 +172,15 @@ export default function App() {
 
   async function handleUpdate(patch: Partial<Pick<VideoItem,'title'|'video_y'|'overlay'|'font'|'title_y'|'filtro'|'cor_titulo'|'titulo_borda'|'tarja'|'narrar_titulo'|'travar_inicio'|'narrations'|'gerar_legenda'|'estilo_legenda'|'voice'|'hook_ativo'|'hook_tipo'|'hook_texto'|'hook_som_entrada'|'hook_som_saida'|'musica_fundo'|'musica_modo'>>) {
     if (selected === null) return
-    console.log('[handleUpdate] patch enviado:', patch)
-    const updated = await api.updateVideo(selected, patch)
-    console.log('[handleUpdate] resposta recebida:', updated, 'travar_inicio=', updated.travar_inicio)
-    setVideos(v => v.map((item, i) => i === selected ? updated : item))
+    
+    // Atualização otimista imediata
+    setVideos(v => v.map((item, i) => i === selected ? { ...item, ...patch } : item))
+    
+    try {
+      await api.updateVideo(selected, patch)
+    } catch(e) {
+      console.error(e)
+    }
   }
 
   async function handleRandomTitle() {
@@ -223,6 +229,12 @@ export default function App() {
               tab === 'voz' ? 'bg-brand-gradient text-white shadow-glow' : 'text-muted hover:text-white'
             }`}
           >🎙️ Voz</button>
+          <button
+            onClick={() => setTab('ranking')}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+              tab === 'ranking' ? 'bg-brand-gradient text-white shadow-glow' : 'text-muted hover:text-white'
+            }`}
+          >🏆 Ranking</button>
         </div>
       </div>
 
@@ -237,37 +249,47 @@ export default function App() {
         {/* Right */}
         <div className="flex flex-col gap-4 flex-1 xl:overflow-y-auto">
           <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-4">
-            <ConfigPanel
-              video={selectedVideo}
-              overlays={overlays}
-              onChange={handleUpdate}
-              onRandomTitle={handleRandomTitle}
-              onRandomHook={async () => {
-                const { hook } = await api.randomHook()
-                handleUpdate({ hook_texto: hook })
-              }}
-              onOverlaysChanged={refreshOverlays}
-              onRefreshVideos={refreshVideos}
-              onToast={toast}
-            />
-            <PreviewPanel
-              video={selectedVideo}
-              overlay={overlays.find(o => o.id === selectedVideo?.overlay)}
-              onChange={handleUpdate}
-            />
+            <div className="space-y-4">
+              <ConfigPanel
+                video={selectedVideo}
+                overlays={overlays}
+                onChange={handleUpdate}
+                onRandomTitle={handleRandomTitle}
+                onRandomHook={async () => {
+                  const { hook } = await api.randomHook()
+                  handleUpdate({ hook_texto: hook })
+                }}
+                onOverlaysChanged={refreshOverlays}
+                onRefreshVideos={refreshVideos}
+                onToast={toast}
+                onPreviewPatch={(patch) => {
+                  if (selected !== null) {
+                    setVideos(v => v.map((item, i) => i === selected ? { ...item, ...patch } : item))
+                  }
+                }}
+              />
+              <ProgressPanel
+                videos={videos}
+                processing={processing}
+                lastEvent={lastEvent}
+                batchStartedAt={batchStartedAt}
+                batchElapsedMs={batchElapsedMs}
+              />
+            </div>
+            <div className="space-y-4 sticky top-4 self-start">
+              <PreviewPanel
+                video={selectedVideo}
+                overlay={overlays.find(o => o.id === selectedVideo?.overlay)}
+                onChange={handleUpdate}
+              />
+            </div>
           </div>
-          <ProgressPanel
-            videos={videos}
-            processing={processing}
-            lastEvent={lastEvent}
-            batchStartedAt={batchStartedAt}
-            batchElapsedMs={batchElapsedMs}
-          />
         </div>
       </div>
       )}
 
       {tab === 'voz' && <VoicePanel onToast={toast} />}
+      {tab === 'ranking' && <RankingTab onToast={toast} />}
 
       <div className="px-4 pb-4 shrink-0">
         <StatusBar message={status.msg} color={status.color} />

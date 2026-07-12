@@ -47,6 +47,7 @@ interface Props {
   onOverlaysChanged?: () => void
   onRefreshVideos?: () => void
   onToast?: (msg: string, color?: 'green' | 'red' | 'yellow') => void
+  onPreviewPatch?: (patch: Partial<VideoItem>) => void
 }
 
 export default function ConfigPanel({
@@ -58,6 +59,7 @@ export default function ConfigPanel({
   onOverlaysChanged,
   onRefreshVideos,
   onToast,
+  onPreviewPatch,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [busy, setBusy] = useState(false)
@@ -89,6 +91,7 @@ export default function ConfigPanel({
 
   function handleTitleYChange(v: number) {
     setTitleYDraft(v)
+    if (onPreviewPatch) onPreviewPatch({ title_y: v })
     if (titleYDebounce.current !== null) window.clearTimeout(titleYDebounce.current)
     titleYDebounce.current = window.setTimeout(() => {
       onChange({ title_y: v })
@@ -106,6 +109,7 @@ export default function ConfigPanel({
 
   function handleVideoYChange(v: number) {
     setVideoYDraft(v)
+    if (onPreviewPatch) onPreviewPatch({ video_y: v })
     if (videoYDebounce.current !== null) window.clearTimeout(videoYDebounce.current)
     videoYDebounce.current = window.setTimeout(() => {
       onChange({ video_y: v })

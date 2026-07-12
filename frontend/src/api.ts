@@ -206,6 +206,73 @@ export interface IntelPreview {
   tempo_analise_ms: number
 }
 
+// ── Ranking (Top N) ─────────────────────────────────────────────────────────────
+
+export interface RankingHook {
+  ativo:   boolean
+  tipo:    string   // 'textao' | 'corte_seco'
+  texto:   string
+  som_entrada: string
+  som_saida:   string
+}
+
+export interface RankingOutro {
+  texto:  string
+  estilo: string   // 'none' | 'textao'
+}
+
+export interface RankingLegenda {
+  ativa:  boolean
+  estilo: string   // AMARELO_CLASSICO | POP_BRANCO | BOX_HORMOZI | NEON_VERDE
+}
+
+export interface RankingItem {
+  posicao:           number
+  link:              string
+  duracao_original_s: number | null
+  trim_inicio_s:     number
+  trim_fim_s:        number
+  titulo_item:       string
+  video_y:           number
+  overlay:           string | null
+  filtro:            string
+  narracao_texto:    string | null
+  thumb_cache:       string | null
+  status_link:       string   // 'ok' | 'invalido' | 'verificando'
+}
+
+export interface Ranking {
+  id:             string
+  titulo_geral:   string
+  ordem:          string   // 'decrescente' | 'crescente'
+  quantidade:     number
+  overlay:        string | null
+  narrar_titulo_geral: boolean
+  narrar_titulos_itens: boolean
+  legendar_titulo_geral: boolean
+  title_y?:          number
+  font?:             string
+  cor_titulo?:       string
+  titulo_borda?:     boolean
+  itens_y?:          number
+  transicao_tipo: string   // 'flash' | 'zoom_corte' | 'glitch'
+  transicao_sfx:  string
+  trilha_fundo:   string | null
+  trilha_modo:    string   // '50_50' | 'ambiente'
+  hook:           RankingHook | null
+  outro:          RankingOutro | null
+  legenda:        RankingLegenda | null
+  status:         string   // editando | na_fila | processando | enviando_drive | concluido | erro
+  processado:     boolean
+  itens:          RankingItem[]
+  drive_url?:     string
+  upload_error?:  string
+}
+
+export const RANKING_QUANTIDADES = [3, 4, 5]
+export const RANKING_TRANSICOES   = ['nenhum', 'flash', 'zoom_corte', 'glitch']
+export const RANKING_ESTILOS_LEGENDA = ['AMARELO_CLASSICO', 'POP_BRANCO', 'BOX_HORMOZI', 'NEON_VERDE']
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -259,6 +326,22 @@ export const api = {
   deleteLocal: (idx: number)                => req<{ok:boolean}>('DELETE', `/api/videos/${idx}/local`),
   queueVideo:  (idx: number)                => req<{ok:boolean}>('POST', `/api/videos/${idx}/queue`),
   dequeueVideo:(idx: number)                => req<{ok:boolean}>('DELETE', `/api/videos/${idx}/queue`),
+  // ── Ranking ──────────────────────────────────────────────────────────────────
+
+  createRanking:  ()                           => req<Ranking>('POST', '/api/ranking', {}),
+  listRankings:   ()                           => req<Ranking[]>('GET', '/api/ranking'),
+  getRanking:     (id: string)                 => req<Ranking>('GET', `/api/ranking/${id}`),
+  updateRanking:  (id: string, patch: Partial<Ranking>) => req<Ranking>('PATCH', `/api/ranking/${id}`, patch),
+  deleteRanking:  (id: string)                 => req<{ok:boolean}>('DELETE', `/api/ranking/${id}`),
+  setRankingItem: (id: string, pos: number, patch: Partial<RankingItem>) => req<RankingItem>('POST', `/api/ranking/${id}/items/${pos}`, patch),
+  rankingItemDuration: (id: string, pos: number) => req<{duracao_original_s:number}>('GET', `/api/ranking/${id}/items/${pos}/duration`),
+  reorderRanking: (id: string, order: number[])  => req<Ranking>('PATCH', `/api/ranking/${id}/reorder`, { order }),
+  queueRanking:   (id: string)                 => req<{ok:boolean}>('POST', `/api/ranking/${id}/queue`),
+  dequeueRanking: (id: string)                 => req<{ok:boolean}>('DELETE', `/api/ranking/${id}/queue`),
+  reprocessRanking: (id: string)               => req<{ok:boolean}>('POST', `/api/ranking/${id}/reprocess`),
+  processRanking: ()                           => req<{started:boolean}>('POST', `/api/ranking/process`),
+  rankingFrameUrl:(id: string, pos: number)   => `/api/ranking/${id}/frame?posicao=${pos}`,
+
   // Voz
   voiceHealth:      ()                     => req<VoiceHealth>('GET', '/voz/health'),
   narrationVoices:  ()                     => req<NarrationVoice[]>('GET', '/api/narration-voices'),

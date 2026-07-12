@@ -1,4 +1,5 @@
 import os
+import tempfile
 import time
 import asyncio
 import subprocess
@@ -138,7 +139,7 @@ def _gerar_ass_intro_titulo(texto: str, dur_total: float, dur_max: float | None 
     """
     import tempfile
 
-    font_size = 125
+    font_size = 160
     max_w = int(WIDTH * 0.85)
     chunks = _split_into_chunks(texto, max_w, font_size)
     if not chunks:
@@ -820,7 +821,7 @@ def baixar_video(url: str, progress_hook=None) -> str:
 
     ydl_opts = {
         "outtmpl": os.path.join(DOWNLOAD_DIR, "%(id)s.%(ext)s"),
-        "format":  "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best",
+        "format":  "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[height<=1080][ext=mp4]/best",
         "merge_output_format": "mp4",
         "quiet":      True,
         "noplaylist": True,
@@ -890,7 +891,8 @@ def gerar_titulo_clip(texto: str, duracao: float,
                       font_label: str = FONT_DEFAULT,
                       title_y: int = TITLE_Y_DEFAULT,
                       cor_label: str = COR_TITULO_DEFAULT,
-                      borda: bool = True):
+                      borda: bool = True,
+                      font_size: int = TITLE_FONT_SIZE):
     if not texto.strip():
         return None
     cor    = cor_titulo_hex(cor_label)
@@ -901,7 +903,7 @@ def gerar_titulo_clip(texto: str, duracao: float,
         TextClip(
             text=texto,
             font=font_path(font_label),
-            font_size=TITLE_FONT_SIZE,
+            font_size=font_size,
             color=cor,
             stroke_color=(stroke if borda else None),
             stroke_width=sw,
@@ -1525,6 +1527,86 @@ def _adicionar_trilha_fundo(video_path: str, musica_fundo: str, modo: str) -> bo
         return False
 
 
+def adicionar_cta_final_audio(video_path: str) -> bool:
+    """
+    Adiciona no final do vídeo (sem legendas) o áudio CTA "já segue nois ai"
+    seguido pelo som de notificação (Plinnnn), congelando o último frame por ~2.4s.
+    """
+    from config import SFX_DIR
+    cta_voice = os.path.join(SFX_DIR, "cta_segue_nois.mp3")
+    if not os.path.exists(cta_voice):
+        alt = r"C:\Users\78787\Downloads\MiniMax_2026-07-11_21_07_55_sett.mp3"
+        if os.path.exists(alt):
+            cta_voice = alt
+        else:
+            return False
+    cta_bell = os.path.join(SFX_DIR, "notificacao.MP3")
+    if not os.path.exists(cta_bell):
+        return False
+
+    tmpdir = os.path.dirname(video_path)
+    last_frame_img = tempfile.mktemp(suffix=".jpg", prefix="cta_last_", dir=tmpdir)
+    cta_tail = tempfile.mktemp(suffix=".mp4", prefix="cta_tail_", dir=tmpdir)
+    out_concat = video_path + ".cta.mp4"
+    list_file = tempfile.mktemp(suffix=".txt", prefix="cta_lst_", dir=tmpdir)
+
+    try:
+        # 1. Extrair último frame como imagem
+        cmd_img = [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-sseof", "-0.1", "-i", video_path,
+            "-vframes", "1", "-q:v", "2", last_frame_img
+        ]
+        subprocess.run(cmd_img, capture_output=True, timeout=30)
+        if not os.path.exists(last_frame_img):
+            return False
+
+        # 2. Gerar vídeo final de 2.4s com a imagem e a mixagem da voz + bell
+        cmd_tail = [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-loop", "1", "-i", last_frame_img,
+            "-i", cta_voice,
+            "-i", cta_bell,
+            "-filter_complex",
+            "[1:a]volume=2.2[v];[2:a]adelay=1150|1150,volume=1.8[b];[v][b]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0[aout]",
+            "-map", "0:v:0", "-map", "[aout]",
+            "-t", "2.40",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
+            cta_tail
+        ]
+        subprocess.run(cmd_tail, capture_output=True, timeout=60)
+        if not os.path.exists(cta_tail):
+            return False
+
+        # 3. Concatenar o vídeo original e o cta_tail
+        with open(list_file, "w", encoding="utf-8") as f:
+            f.write(f"file '{video_path.replace(chr(92), '/')}'\n")
+            f.write(f"file '{cta_tail.replace(chr(92), '/')}'\n")
+
+        cmd_concat = [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-f", "concat", "-safe", "0", "-i", list_file,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
+            out_concat
+        ]
+        res = subprocess.run(cmd_concat, capture_output=True, timeout=180)
+        if res.returncode == 0 and os.path.exists(out_concat):
+            os.replace(out_concat, video_path)
+            print("[CTA] Áudio final 'já segue nois ai + plinnn' adicionado com sucesso!")
+            return True
+        return False
+    except Exception as e:
+        print(f"[CTA] Erro adicionando CTA final: {e}")
+        return False
+    finally:
+        for p in [last_frame_img, cta_tail, out_concat, list_file]:
+            if os.path.exists(p):
+                try: os.unlink(p)
+                except OSError: pass
+
+
 async def processar_video(item: dict, clip_index: int, emit) -> str | None:
     """
     Processa um vídeo e chama emit(event_dict) para cada atualização de status.
@@ -1574,9 +1656,35 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
         )
 
         await cb("status", "exportando")
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+        # ── Recorta o vídeo localmente se trim_inicio_s e trim_fim_s estiverem configurados ──
         vid_id      = _video_id_from_url(item["url"], clip_index)
+        inicio_s    = float(item.get("trim_inicio_s") or 0.0)
+        fim_s       = float(item.get("trim_fim_s") or 0.0)
+        duracao_orig = float(item.get("duration") or 0.0)
+
+        if (inicio_s > 0.0 or (fim_s > 0.0 and fim_s < duracao_orig)) and fim_s > inicio_s:
+            await cb("status", "recortando")
+            cut_path = os.path.join(os.path.dirname(video_path), f"cut_{vid_id}.mp4")
+            cmd_cut = [
+                "ffmpeg", "-y", "-loglevel", "error",
+                "-ss", f"{inicio_s:.2f}", "-to", f"{fim_s:.2f}",
+                "-i", video_path,
+                "-c:v", CODEC_VIDEO,
+                "-c:a", "aac",
+                cut_path
+            ]
+            r_cut = await asyncio.to_thread(
+                lambda: subprocess.run(cmd_cut, capture_output=True)
+            )
+            if r_cut.returncode == 0 and os.path.exists(cut_path):
+                video_path = cut_path
+                print(f"[DEBUG] Video cropped to {inicio_s}s - {fim_s}s. Path: {video_path}")
+            else:
+                err_cut = r_cut.stderr.decode("utf-8", errors="replace")[-300:]
+                print(f"[DEBUG] Crop failed: {err_cut}")
+
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
         output_path = os.path.join(OUTPUT_DIR, f"{vid_id}.mp4")
 
         # ── Render título como PNG via MoviePy (1 frame, rápido) ──
@@ -1613,7 +1721,7 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
         # ── Monta comando ffmpeg único ──
         overlay_path_local = OVERLAYS.get(item.get("overlay", "1"))
         video_y = item.get("video_y", VIDEO_Y_DEFAULT)
-        scale_w = int(WIDTH * VIDEO_SCALE_RATIO_VERTICAL)
+        scale_w = int(WIDTH * VIDEO_SCALE_RATIO_HORIZONTAL)
         scale_h = int(HEIGHT * VIDEO_SCALE_RATIO_VERTICAL)
         pad_y = (HEIGHT - scale_h) // 2 + video_y
         print(f"[DEBUG] video_y={video_y}, pad_y={pad_y}")
@@ -1626,7 +1734,7 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
         filtros.append(
             f"[0:v]scale='if(gt(iw,ih),{scale_w},-2)':'if(gt(iw,ih),-2,{scale_h})':flags=lanczos[vid];"
             f"color=c=black:s={WIDTH}x{HEIGHT}[bg];"
-            f"[bg][vid]overlay=(W-w)/2:{pad_y}:shortest=1[cur]"
+            f"[bg][vid]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[cur]"
         )
         cur = "cur"
 
@@ -1870,6 +1978,10 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
             await asyncio.to_thread(
                 _adicionar_trilha_fundo, output_path, item.get("musica_fundo"), item.get("musica_modo", "100_musica")
             )
+
+        # ── CTA Outro Final ('já segue nois ai' + Plinnnn) ────────────
+        await cb("status", "cta_final")
+        await asyncio.to_thread(adicionar_cta_final_audio, output_path)
 
         finished_at = int(time.time() * 1000)
         await cb("status", "concluido")

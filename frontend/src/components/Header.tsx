@@ -45,9 +45,7 @@ export default function Header({ gpu, processing, queueCount, onProcess, onOpenP
     <header className="flex items-center justify-between px-6 h-16 bg-card/80 backdrop-blur border-b border-border shrink-0">
       {/* Logo */}
       <div className="flex items-center gap-3">
-        <div className="grid place-items-center w-9 h-9 rounded-xl bg-brand-gradient shadow-glow">
-          <Clapperboard size={18} className="text-white" />
-        </div>
+        <img src="/logo-m7.png" alt="M7 Logo" className="w-9 h-9 object-contain rounded-xl shadow-glow" />
         <div>
           <h1 className="text-white font-bold text-lg leading-none tracking-tight">MoviePy <span className="text-accent">Studio</span></h1>
           <p className="text-muted text-[11px] mt-0.5">Download · Overlay · Título · Narração</p>
