@@ -92,7 +92,7 @@ function updateItemsList(activePos, activeTitle) {
   if (!livePreviewItemsList || !activeRankingData) return;
   livePreviewItemsList.innerHTML = "";
 
-  const itensY = 685;
+  const itensY = 710;
   livePreviewItemsList.style.top = `${(itensY / 19.2)}%`;
 
   const isDesc = activeRankingData.ordem !== "crescente";
