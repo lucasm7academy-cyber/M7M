@@ -476,11 +476,8 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
             try: os.unlink(wav)
             except OSError: pass
 
-    # Normaliza loudness
-    print(f"   ├─ [Fase 3/4 - Áudio] Normalizando volume do clipe...")
-    norm = normalizar_audio(out_path)
-    if norm and os.path.exists(norm):
-        os.replace(norm, out_path)
+    # Normaliza loudness (desativado nos itens para velocidade; feito de uma vez no vídeo final)
+    print(f"   ├─ [Fase 3/4 - Áudio] Ignorando normalização individual (feita no final para velocidade)...")
 
     print(f"   └─ [Fase 4/4 - Concluído] ✔️ Item #{posicao} finalizado com sucesso!")
     return out_path
