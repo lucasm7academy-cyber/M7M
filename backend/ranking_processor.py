@@ -41,6 +41,7 @@ import drive_uploader
 # ── Helpers de Paths ───────────────────────────────────────────────────────────
 
 _RANK_TMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ranking_tmp")
+LAYERED_TRANSITIONS = False
 
 def _rank_tmp_dir() -> str:
     os.makedirs(_RANK_TMP, exist_ok=True)
@@ -159,11 +160,11 @@ def _render_side_list_png(ranking: dict, current_posicao: int) -> str | None:
         # Medidas equivalentes ao frontend:
         y_offset = 710
         x_offset = 65
-        line_height = 80
+        line_height = 72
         
         font_file = font_path(ranking.get("font", FONT_DEFAULT))
         try:
-            font = ImageFont.truetype(font_file, 50)
+            font = ImageFont.truetype(font_file, 42)
         except Exception:
             font = ImageFont.load_default()
             
@@ -204,14 +205,14 @@ def _render_side_list_png(ranking: dict, current_posicao: int) -> str | None:
             
             # 1. Desenha o número (primeiro contorno grosso preto, depois o interior branco)
             draw.text((x_offset, y_offset), num_text, font=font, fill="black", 
-                      stroke_width=5, stroke_fill="black")
+                      stroke_width=4, stroke_fill="black")
             draw.text((x_offset, y_offset), num_text, font=font, fill="white")
             
             # 2. Desenha o título do lado (primeiro contorno grosso preto, depois a cor do preenchimento)
             if titulo:
                 num_width = draw.textlength(num_text + " ", font=font)
                 draw.text((x_offset + num_width, y_offset), titulo, font=font, fill="black", 
-                          stroke_width=5, stroke_fill="black")
+                          stroke_width=4, stroke_fill="black")
                 draw.text((x_offset + num_width, y_offset), titulo, font=font, fill=title_color)
             
             y_offset += line_height
@@ -282,7 +283,6 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
     out_path = os.path.join(OUTPUT_DIR, f"rk_item_{idx}_{vid_id}.mp4")
 
     # PNGeis (lista lateral + título)
-    LAYERED_TRANSITIONS = True
     if LAYERED_TRANSITIONS:
         sidelist_png = None
         title_png = None
@@ -303,7 +303,6 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
             tc.save_frame(tarja_png, t=0)
             tc.close()
 
-    LAYERED_TRANSITIONS = True
     if LAYERED_TRANSITIONS:
         overlay_path_local = None
     else:
@@ -922,120 +921,121 @@ def montar_ranking(ranking: dict, emit) -> str | None:
         return None
 
     # ── Layered Transitions Overlay Step ──
-    try:
-        print(f"[RANKING] 🎨 Aplicando Overlays em Camadas (Overlay Mask + Título Geral + Side Lists)...")
-        emit({"type": "status", "value": "aplicando_overlays"})
-        
-        # Calculate timings directly from the config trim fields (extremely fast and robust)
-        durations = []
-        for item in itens_ordenados:
-            t_in = float(item.get("trim_inicio_s") or 0.0)
-            t_out = float(item.get("trim_fim_s") or 10.0)
-            d = t_out - t_in
-            if d <= 0:
-                d = 10.0
-            durations.append(d)
+    if LAYERED_TRANSITIONS:
+        try:
+            print(f"[RANKING] 🎨 Aplicando Overlays em Camadas (Overlay Mask + Título Geral + Side Lists)...")
+            emit({"type": "status", "value": "aplicando_overlays"})
             
-        timings = []
-        current_time = 0.0
-        
-        tipo_trans_first = itens_ordenados[0].get("transicao_tipo", "default")
-        if not tipo_trans_first or tipo_trans_first == "default":
-            tipo_trans_first = ranking.get("transicao_tipo", "flash")
+            # Calculate timings directly from the config trim fields (extremely fast and robust)
+            durations = []
+            for item in itens_ordenados:
+                t_in = float(item.get("trim_inicio_s") or 0.0)
+                t_out = float(item.get("trim_fim_s") or 10.0)
+                d = t_out - t_in
+                if d <= 0:
+                    d = 10.0
+                durations.append(d)
+                
+            timings = []
+            current_time = 0.0
             
-        entry_offset = 0.0
-        if tipo_trans_first and tipo_trans_first != "none":
-            dur_s = 0.8 if tipo_trans_first == "fade_preto" else 0.5
-            dur_black = dur_s + 0.1
-            entry_offset = dur_black - dur_s
-            current_time = entry_offset
+            tipo_trans_first = itens_ordenados[0].get("transicao_tipo", "default")
+            if not tipo_trans_first or tipo_trans_first == "default":
+                tipo_trans_first = ranking.get("transicao_tipo", "flash")
+                
+            entry_offset = 0.0
+            if tipo_trans_first and tipo_trans_first != "none":
+                dur_s = 0.8 if tipo_trans_first == "fade_preto" else 0.5
+                dur_black = dur_s + 0.1
+                entry_offset = dur_black - dur_s
+                current_time = entry_offset
 
-        for idx, p in enumerate(item_paths):
-            dur = durations[idx] or 0.0
-            transition_out_s = 0.0
-            if idx < len(item_paths) - 1:
-                next_item = itens_ordenados[idx + 1]
-                tipo_trans = next_item.get("transicao_tipo", "default")
-                if not tipo_trans or tipo_trans == "default":
-                    tipo_trans = ranking.get("transicao_tipo", "flash")
-                if tipo_trans and tipo_trans != "none":
-                    transition_out_s = 0.8 if tipo_trans == "fade_preto" else 0.5
-            
-            end_time = current_time + dur - (transition_out_s / 2)
-            timings.append((current_time, end_time))
-            current_time = current_time + dur - transition_out_s
+            for idx, p in enumerate(item_paths):
+                dur = durations[idx] or 0.0
+                transition_out_s = 0.0
+                if idx < len(item_paths) - 1:
+                    next_item = itens_ordenados[idx + 1]
+                    tipo_trans = next_item.get("transicao_tipo", "default")
+                    if not tipo_trans or tipo_trans == "default":
+                        tipo_trans = ranking.get("transicao_tipo", "flash")
+                    if tipo_trans and tipo_trans != "none":
+                        transition_out_s = 0.8 if tipo_trans == "fade_preto" else 0.5
+                
+                end_time = current_time + dur - (transition_out_s / 2)
+                timings.append((current_time, end_time))
+                current_time = current_time + dur - transition_out_s
 
-        # Generate overlay PNGs
-        overlay_path_local = OVERLAYS.get(ranking.get("overlay", "1")) if ranking.get("overlay") else None
-        
-        title_png = _render_title_png(ranking, itens_ordenados[0])  # Use title from ranking config
-        
-        sidelist_pngs = []
-        for idx, item in enumerate(itens_ordenados):
-            pos = item.get("posicao", idx + 1)
-            sidelist_pngs.append(_render_side_list_png(ranking, pos))
+            # Generate overlay PNGs
+            overlay_path_local = OVERLAYS.get(ranking.get("overlay", "1")) if ranking.get("overlay") else None
+            
+            title_png = _render_title_png(ranking, itens_ordenados[0])  # Use title from ranking config
+            
+            sidelist_pngs = []
+            for idx, item in enumerate(itens_ordenados):
+                pos = item.get("posicao", idx + 1)
+                sidelist_pngs.append(_render_side_list_png(ranking, pos))
 
-        # Build FFmpeg command to overlay static mask, general title, and dynamic side lists
-        inputs = ["ffmpeg", "-y", "-loglevel", "error", "-i", final]
-        filter_nodes = []
-        curr_in = "0:v"
-        next_input_idx = 1
-        
-        # 1. Overlay Mask
-        if overlay_path_local and os.path.exists(overlay_path_local):
-            inputs += ["-loop", "1", "-i", overlay_path_local]
-            filter_nodes.append(f"[{curr_in}][{next_input_idx}:v]overlay=0:0:shortest=1[ov_mask]")
-            curr_in = "ov_mask"
-            next_input_idx += 1
+            # Build FFmpeg command to overlay static mask, general title, and dynamic side lists
+            inputs = ["ffmpeg", "-y", "-loglevel", "error", "-i", final]
+            filter_nodes = []
+            curr_in = "0:v"
+            next_input_idx = 1
             
-        # 2. General Title
-        if title_png and os.path.exists(title_png):
-            inputs += ["-loop", "1", "-i", title_png]
-            title_y = int(ranking.get("title_y", TITLE_Y_DEFAULT))
-            filter_nodes.append(f"[{curr_in}][{next_input_idx}:v]overlay=(W-w)/2:{title_y}:shortest=1[ov_title]")
-            curr_in = "ov_title"
-            next_input_idx += 1
-            
-        # 3. Side Lists
-        for idx, (sidelist_path, (start_t, end_t)) in enumerate(zip(sidelist_pngs, timings)):
-            if sidelist_path and os.path.exists(sidelist_path):
-                inputs += ["-loop", "1", "-i", sidelist_path]
-                out_node = f"ov_sd_{idx}"
-                filter_nodes.append(
-                    f"[{curr_in}][{next_input_idx}:v]overlay=0:0:shortest=1:enable='between(t,{start_t:.3f},{end_t:.3f})'[{out_node}]"
-                )
-                curr_in = out_node
+            # 1. Overlay Mask
+            if overlay_path_local and os.path.exists(overlay_path_local):
+                inputs += ["-loop", "1", "-i", overlay_path_local]
+                filter_nodes.append(f"[{curr_in}][{next_input_idx}:v]overlay=0:0:shortest=1[ov_mask]")
+                curr_in = "ov_mask"
                 next_input_idx += 1
                 
-        # Run final composition
-        temp_out = final + ".layered.mp4"
-        cmd = inputs + [
-            "-filter_complex", ";".join(filter_nodes),
-            "-map", f"[{curr_in}]", "-map", "0:a",
-            "-c:v", CODEC_VIDEO, *FFMPEG_PARAMS,
-            "-c:a", "copy",
-            temp_out
-        ]
-        
-        r_comp = _run(cmd, timeout=300)
-        
-        # Clean up temporary PNG files
-        if title_png and os.path.exists(title_png):
-            try: os.unlink(title_png)
-            except OSError: pass
-        for p_sd in sidelist_pngs:
-            if p_sd and os.path.exists(p_sd):
-                try: os.unlink(p_sd)
-                except OSError: pass
+            # 2. General Title
+            if title_png and os.path.exists(title_png):
+                inputs += ["-loop", "1", "-i", title_png]
+                title_y = int(ranking.get("title_y", TITLE_Y_DEFAULT))
+                filter_nodes.append(f"[{curr_in}][{next_input_idx}:v]overlay=(W-w)/2:{title_y}:shortest=1[ov_title]")
+                curr_in = "ov_title"
+                next_input_idx += 1
                 
-        if r_comp.returncode == 0 and os.path.exists(temp_out):
-            os.replace(temp_out, final)
-            print(f"[RANKING] ✔️ Overlays e textos aplicados com sucesso!")
-        else:
-            err = r_comp.stderr.decode("utf-8", errors="replace") if r_comp.stderr else ""
-            print(f"[ranking] layered overlay composition falhou: {err}")
-    except Exception as e:
-        print(f"[ranking] erro ao processar layered overlays: {e}")
+            # 3. Side Lists
+            for idx, (sidelist_path, (start_t, end_t)) in enumerate(zip(sidelist_pngs, timings)):
+                if sidelist_path and os.path.exists(sidelist_path):
+                    inputs += ["-loop", "1", "-i", sidelist_path]
+                    out_node = f"ov_sd_{idx}"
+                    filter_nodes.append(
+                        f"[{curr_in}][{next_input_idx}:v]overlay=0:0:shortest=1:enable='between(t,{start_t:.3f},{end_t:.3f})'[{out_node}]"
+                    )
+                    curr_in = out_node
+                    next_input_idx += 1
+                    
+            # Run final composition
+            temp_out = final + ".layered.mp4"
+            cmd = inputs + [
+                "-filter_complex", ";".join(filter_nodes),
+                "-map", f"[{curr_in}]", "-map", "0:a",
+                "-c:v", CODEC_VIDEO, *FFMPEG_PARAMS,
+                "-c:a", "copy",
+                temp_out
+            ]
+            
+            r_comp = _run(cmd, timeout=300)
+            
+            # Clean up temporary PNG files
+            if title_png and os.path.exists(title_png):
+                try: os.unlink(title_png)
+                except OSError: pass
+            for p_sd in sidelist_pngs:
+                if p_sd and os.path.exists(p_sd):
+                    try: os.unlink(p_sd)
+                    except OSError: pass
+                    
+            if r_comp.returncode == 0 and os.path.exists(temp_out):
+                os.replace(temp_out, final)
+                print(f"[RANKING] ✔️ Overlays e textos aplicados com sucesso!")
+            else:
+                err = r_comp.stderr.decode("utf-8", errors="replace") if r_comp.stderr else ""
+                print(f"[ranking] layered overlay composition falhou: {err}")
+        except Exception as e:
+            print(f"[ranking] erro ao processar layered overlays: {e}")
 
     # Hook de intro (título geral)
     hook = ranking.get("hook")
