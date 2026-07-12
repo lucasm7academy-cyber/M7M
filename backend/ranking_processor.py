@@ -296,8 +296,9 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
     i = 1
 
     filtros.append(
-        f"[0:v]scale='if(gt(iw,ih),{scale_w},-2)':'if(gt(iw,ih),-2,{scale_h})':flags=lanczos[vid];"
-        f"color=c=black:s={WIDTH}x{HEIGHT}[bg];"
+        f"[0:v]split=2[v_bg][v_main];"
+        f"[v_bg]scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,crop={WIDTH}:{HEIGHT},boxblur=25:5[bg];"
+        f"[v_main]scale='if(gt(iw,ih),{scale_w},-2)':'if(gt(iw,ih),-2,{scale_h})':flags=lanczos[vid];"
         f"[bg][vid]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[cur]"
     )
     cur = "cur"

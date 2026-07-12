@@ -108,6 +108,7 @@ const btnAddNarration = document.getElementById("btnAddNarration");
 const livePreviewArea = document.getElementById("livePreviewArea");
 const livePreviewContainer = document.getElementById("livePreviewContainer");
 const livePreviewFallback = document.getElementById("livePreviewFallback");
+const livePreviewBlurBg = document.getElementById("livePreviewBlurBg");
 const livePreviewFrame = document.getElementById("livePreviewFrame");
 const livePreviewOverlay = document.getElementById("livePreviewOverlay");
 const livePreviewTitle = document.getElementById("livePreviewTitle");
@@ -385,12 +386,14 @@ function setupEventListeners() {
   livePreviewFrame.addEventListener("load", () => {
     previewLoadingBadge.style.display = "none";
     livePreviewFallback.style.opacity = "0";
+    livePreviewBlurBg.style.opacity = "1";
     livePreviewFrame.style.opacity = "1";
     updateLivePreviewPlacement();
   });
   livePreviewFrame.addEventListener("error", () => {
     previewLoadingBadge.style.display = "none";
     livePreviewFallback.style.opacity = "1";
+    livePreviewBlurBg.style.opacity = "0";
     livePreviewFrame.style.opacity = "0";
   });
 
@@ -989,7 +992,10 @@ function triggerLivePreviewLoading(url) {
   }
 
   // Load high-quality frame from backend
-  livePreviewFrame.src = `${API_URL}/api/frame?url=${encodeURIComponent(url)}&v=${Date.now()}`;
+  const frameUrl = `${API_URL}/api/frame?url=${encodeURIComponent(url)}&v=${Date.now()}`;
+  livePreviewFrame.src = frameUrl;
+  livePreviewBlurBg.src = frameUrl;
+  livePreviewBlurBg.style.display = "block";
   
   updateLivePreview();
 }

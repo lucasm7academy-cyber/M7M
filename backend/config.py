@@ -25,7 +25,7 @@ TITLE_Y_DEFAULT = TITLE_Y_OFFSET
 # negativo = sobe (mostra base). Espelhado no preview.
 VIDEO_Y_MIN     = -800
 VIDEO_Y_MAX     = 800
-VIDEO_Y_DEFAULT = 0
+VIDEO_Y_DEFAULT = 150
 
 # ── Paths automáticos ─────────────────────────────────────────────────────────
 # Dentro do Docker  → /app/

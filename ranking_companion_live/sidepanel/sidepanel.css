@@ -757,6 +757,16 @@ input.input-readonly {
   background: linear-gradient(to bottom, #1e1e2e, #0c0c12);
   z-index: 1;
 }
+.live-preview-blur-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 2;
+  filter: blur(15px) brightness(0.65);
+  pointer-events: none;
+}
 .live-preview-fallback {
   position: absolute;
   inset: 0;
@@ -768,7 +778,7 @@ input.input-readonly {
   transition: opacity 0.3s ease;
 }
 .live-preview-frame {
-  z-index: 2;
+  z-index: 3;
   transition: opacity 0.3s ease;
   pointer-events: none;
 }
@@ -778,7 +788,7 @@ input.input-readonly {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  z-index: 3;
+  z-index: 4;
   pointer-events: none;
 }
 .live-preview-title {

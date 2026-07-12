@@ -95,6 +95,7 @@ const previewImg = document.getElementById("previewImg");
 // Live 9:16 Preview Box
 const livePreviewArea = document.getElementById("livePreviewArea");
 const livePreviewFallback = document.getElementById("livePreviewFallback");
+const livePreviewBlurBg = document.getElementById("livePreviewBlurBg");
 const livePreviewFrame = document.getElementById("livePreviewFrame");
 const livePreviewOverlay = document.getElementById("livePreviewOverlay");
 const livePreviewTitle = document.getElementById("livePreviewTitle");
@@ -469,6 +470,7 @@ function setupEventListeners() {
   livePreviewFrame.addEventListener("load", () => {
     previewLoadingBadge.style.display = "none";
     livePreviewFallback.style.opacity = "0";
+    livePreviewBlurBg.style.opacity = "1";
     livePreviewFrame.style.opacity = "1";
     updateLivePreviewPlacement();
   });
@@ -476,6 +478,7 @@ function setupEventListeners() {
     previewLoadingBadge.style.display = "none";
     // Keep fallback thumbnail visible
     livePreviewFallback.style.opacity = "1";
+    livePreviewBlurBg.style.opacity = "0";
     livePreviewFrame.style.opacity = "0";
   });
 }
@@ -1089,6 +1092,8 @@ function triggerLivePreviewLoading(url, title, time = null) {
   }
   frameUrl += `&v=${Date.now()}`;
   livePreviewFrame.src = frameUrl;
+  livePreviewBlurBg.src = frameUrl;
+  livePreviewBlurBg.style.display = "block";
   
   updateLivePreviewOverlay();
   updateLivePreviewItems();
