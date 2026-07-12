@@ -92,11 +92,21 @@ function updateItemsList(activePos, activeTitle) {
   if (!livePreviewItemsList || !activeRankingData) return;
   livePreviewItemsList.innerHTML = "";
 
-  const itensY = activeRankingData.itens_y || 538;
+  const itensY = 685;
   livePreviewItemsList.style.top = `${(itensY / 19.2)}%`;
 
   const isDesc = activeRankingData.ordem !== "crescente";
   const sorted = [...activeRankingData.itens].sort((a, b) => isDesc ? b.posicao - a.posicao : a.posicao - b.posicao);
+
+  const esquema = activeRankingData.esquema_cores || "roxo_verde";
+  const colorMap = {
+    roxo_verde: { past: '#8B5CF6', current: '#00FF66' },
+    azul_amarelo: { past: '#3B82F6', current: '#FFD400' },
+    cinza_ciano: { past: '#A1A1AA', current: '#00BDFF' },
+    rosa_roxo: { past: '#FF2D95', current: '#8B5CF6' },
+    amarelo_verde: { past: '#FFD400', current: '#00FF66' }
+  };
+  const colors = colorMap[esquema] || colorMap.roxo_verde;
 
   sorted.forEach((it) => {
     const isActive = it.posicao === activePos;
@@ -108,9 +118,12 @@ function updateItemsList(activePos, activeTitle) {
 
     const itemDiv = document.createElement("div");
     itemDiv.className = "live-preview-item";
+    
+    const textColor = isActive ? colors.current : colors.past;
+
     itemDiv.innerHTML = `
       <span class="live-preview-item-num">${it.posicao}º</span>
-      <span class="live-preview-item-text ${isActive ? "active" : ""}">${displayTitle}</span>
+      <span class="live-preview-item-text" style="color: ${textColor} !important;">${displayTitle}</span>
     `;
     livePreviewItemsList.appendChild(itemDiv);
   });

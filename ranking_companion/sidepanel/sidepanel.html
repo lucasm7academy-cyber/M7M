@@ -54,6 +54,7 @@
                 <label for="rankingSelect" class="field-label">Selecionar o Ranking</label>
                 <div style="display: flex; gap: 4px;">
                   <button type="button" class="btn-icon-only" id="refreshRankingsBtn" title="Atualizar Rankings">↻</button>
+                  <button type="button" class="btn btn-secondary" id="btnCreateTestPreset" style="padding: 2px 8px; font-size: 11px; background: var(--brand-violet); border-color: var(--brand-violet);">⚡ Teste</button>
                   <button type="button" class="btn btn-secondary" id="btnToggleCreateRanking" style="padding: 2px 8px; font-size: 11px;">+ Novo</button>
                 </div>
               </div>
@@ -94,7 +95,7 @@
           </section>
 
           <!-- YouTube Grabber -->
-          <section class="section-card" id="activeMediaSection">
+          <section class="section-card" id="activeMediaSection" style="display: none !important;">
             <h2 class="section-title">📺 Vídeo Atual Detectado</h2>
 
             <div id="noVideoMsg" class="alert-box alert-info">
@@ -173,7 +174,7 @@
                   <input type="text" id="itemTitleInput" placeholder="Ex: O chute de trivela" spellcheck="true" />
                 </div>
 
-                <div class="field">
+                <div class="field" style="display: none !important;">
                   <label for="itemUrlInput" class="field-label">Link do Vídeo (YouTube)</label>
                   <input type="text" id="itemUrlInput" placeholder="Link do vídeo ou use capturado acima" spellcheck="false" />
                 </div>

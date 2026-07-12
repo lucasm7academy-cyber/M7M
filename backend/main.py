@@ -399,6 +399,8 @@ class RankingItemModel(BaseModel):
     overlay:          str | None = None
     filtro:           str = "Nenhum"
     narracao_texto:   str | None = None
+    transicao_sfx:    str = "none"
+    transicao_tipo:   str = "default"
     thumb_cache:      str | None = None
     status_link:      str = "verificando"
     tarja:            Tarja | None = None
@@ -994,19 +996,21 @@ def criar_ranking(req: CreateRankingRequest):
         "video_y": 0, "overlay": None, "filtro": "Nenhum",
         "narracao_texto": None, "thumb_cache": None, "status_link": "verificando",
         "tarja": dict(TARJA_DEFAULT),
+        "transicao_tipo": "fade_preto",
+        "transicao_sfx": "click",
     } for i in range(qtd)]
     rk = {
         "id": str(uuid.uuid4()),
         "titulo_geral": req.titulo_geral,
         "ordem": req.ordem if req.ordem in ("decrescente", "crescente") else RANKING_ORDEM_DEFAULT,
         "quantidade": qtd,
-        "overlay": None,
+        "overlay": "3",
         "narrar_titulo_geral": False,
         "narrar_titulos_itens": False,
         "gerar_legenda": False,
         "legendar_titulo_geral": req.legendar_titulo_geral,
-        "transicao_tipo": RANKING_TRANSICAO_DEFAULT,
-        "transicao_sfx": "none",
+        "transicao_tipo": "fade_preto",
+        "transicao_sfx": "click",
         "trilha_fundo": None,
         "trilha_modo": "50_50",
         "hook": None,
@@ -1019,7 +1023,8 @@ def criar_ranking(req: CreateRankingRequest):
         "font": "Padrão",
         "cor_titulo": "Branco",
         "titulo_borda": True,
-        "itens_y": 538,
+        "itens_y": 685,
+        "esquema_cores": "roxo_verde",
     }
     lista_rankings.append(rk)
     return rk
@@ -1045,7 +1050,7 @@ def editar_ranking(rid: str, req: dict):
         raise HTTPException(404, "Ranking não encontrado")
     campos = ["titulo_geral", "ordem", "quantidade", "overlay", "narrar_titulo_geral", "legendar_titulo_geral",
               "narrar_titulos_itens", "transicao_tipo", "transicao_sfx", "trilha_fundo", "trilha_modo",
-              "hook", "outro", "legenda", "status", "title_y", "font", "cor_titulo", "titulo_borda", "itens_y"]
+              "hook", "outro", "legenda", "status", "title_y", "font", "cor_titulo", "titulo_borda", "itens_y", "esquema_cores"]
     for c in campos:
         if c in req and req[c] is not None:
             rk[c] = req[c]
@@ -1064,6 +1069,8 @@ def editar_ranking(rid: str, req: dict):
                     "video_y": 0, "overlay": None, "filtro": "Nenhum",
                     "narracao_texto": None, "thumb_cache": None, "status_link": "verificando",
                     "tarja": dict(TARJA_DEFAULT),
+                    "transicao_tipo": "fade_preto",
+                    "transicao_sfx": "default",
                 })
             rk["itens"] = itens
 
@@ -1103,7 +1110,7 @@ def definir_item(rid: str, posicao: int, req: dict):
     link_changed = bool(new_link and new_link != old_link)
 
     for campo in ["link", "trim_inicio_s", "trim_fim_s", "titulo_item", "video_y",
-                  "overlay", "filtro", "narracao_texto", "thumb_cache"]:
+                  "overlay", "filtro", "narracao_texto", "thumb_cache", "transicao_sfx", "transicao_tipo"]:
         if campo in req and req[campo] is not None:
             item[campo] = req[campo]
             

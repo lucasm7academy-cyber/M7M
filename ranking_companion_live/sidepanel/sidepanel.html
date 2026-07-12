@@ -54,6 +54,7 @@
                 <label for="rankingSelect" class="field-label">Selecionar o Ranking</label>
                 <div style="display: flex; gap: 4px;">
                   <button type="button" class="btn-icon-only" id="refreshRankingsBtn" title="Atualizar Rankings">↻</button>
+                  <button type="button" class="btn btn-secondary" id="btnCreateTestPreset" style="padding: 2px 8px; font-size: 11px; background: var(--brand-violet); border-color: var(--brand-violet);">⚡ Teste</button>
                   <button type="button" class="btn btn-secondary" id="btnToggleCreateRanking" style="padding: 2px 8px; font-size: 11px;">+ Novo</button>
                 </div>
               </div>
@@ -75,9 +76,8 @@
                     <label for="newRankingQty" class="field-label">Qtd. Itens</label>
                     <select id="newRankingQty" class="select-field">
                       <option value="3">3 Posições</option>
+                      <option value="4">4 Posições</option>
                       <option value="5">5 Posições</option>
-                      <option value="7">7 Posições</option>
-                      <option value="10">10 Posições</option>
                     </select>
                   </div>
                   <div class="field">
@@ -94,7 +94,7 @@
           </section>
 
           <!-- YouTube Grabber -->
-          <section class="section-card" id="activeMediaSection">
+          <section class="section-card" id="activeMediaSection" style="display: none !important;">
             <h2 class="section-title">📺 Vídeo Atual Detectado</h2>
 
             <div id="noVideoMsg" class="alert-box alert-info">
@@ -150,11 +150,45 @@
               </div>
 
               <div class="field">
+                <label for="rankingColorSchemeSelect" class="field-label">Esquema de Cores dos Itens</label>
+                <select id="rankingColorSchemeSelect" class="select-field">
+                  <option value="roxo_verde">Roxo + Verde (Padrão)</option>
+                  <option value="azul_amarelo">Azul + Amarelo</option>
+                  <option value="cinza_ciano">Cinza + Ciano</option>
+                  <option value="rosa_roxo">Rosa + Roxo</option>
+                  <option value="amarelo_verde">Amarelo + Verde</option>
+                </select>
+              </div>
+
+              <div class="field">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                   <label for="globalTitleYInput" class="field-label">Altura do Título</label>
                   <span id="globalTitleYVal" style="font-family: monospace; font-weight: 700; color: var(--cyan); font-size: 12px;">220px</span>
                 </div>
                 <input type="range" id="globalTitleYInput" min="50" max="700" value="220" step="5" class="slider" />
+              </div>
+
+              <!-- Global Transitions Configurations -->
+              <div class="field-row" style="margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; display: none !important;">
+                <div class="field">
+                  <label for="globalTransicaoTipoSelect" class="field-label">Efeito de Transição</label>
+                  <select id="globalTransicaoTipoSelect" class="select-field">
+                    <option value="none">Sem Efeito (Corte Seco)</option>
+                    <option value="fade_preto">Fade do Preto (0.8s)</option>
+                    <option value="slide_up">Subir de Baixo (0.5s)</option>
+                    <option value="slide_left">Vir da Direita (0.5s)</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="globalTransicaoSfxSelect" class="field-label">Som da Transição</label>
+                  <select id="globalTransicaoSfxSelect" class="select-field">
+                    <option value="none">Nenhum</option>
+                    <option value="whoosh">Whoosh (Vento)</option>
+                    <option value="camera">Câmera</option>
+                    <option value="click">Click</option>
+                    <option value="notificacao">Notificação (Plim)</option>
+                  </select>
+                </div>
               </div>
             </div>
           </section>
@@ -173,7 +207,7 @@
                   <input type="text" id="itemTitleInput" placeholder="Ex: O chute de trivela" spellcheck="true" />
                 </div>
 
-                <div class="field">
+                <div class="field" style="display: none !important;">
                   <label for="itemUrlInput" class="field-label">Link do Vídeo (YouTube)</label>
                   <input type="text" id="itemUrlInput" placeholder="Link do vídeo ou use capturado acima" spellcheck="false" />
                 </div>
@@ -205,6 +239,35 @@
                   </div>
                   <input type="range" id="videoYInput" min="-800" max="800" value="0" step="10" class="slider" />
                 </div>
+
+                <!-- Transition settings (Collapsible) -->
+                <details class="advanced-details" style="margin-top: 4px; border-top: 1px solid var(--border); padding-top: 4px;">
+                  <summary class="advanced-summary">Efeito de Transição (Entrada)</summary>
+                  <div class="advanced-content" style="padding: 8px; display: flex; flex-direction: column; gap: 8px;">
+                    <div class="field-row">
+                      <div class="field">
+                        <label for="itemTransicaoTipoSelect" class="field-label">Efeito Visual</label>
+                        <select id="itemTransicaoTipoSelect" class="select-field">
+                          <option value="default">Usar Padrão</option>
+                          <option value="none">Sem Efeito (Corte)</option>
+                          <option value="fade_preto">Fade do Preto</option>
+                          <option value="slide_up">Subir de Baixo</option>
+                          <option value="slide_left">Vir da Direita</option>
+                        </select>
+                      </div>
+                      <div class="field">
+                        <label for="itemTransicaoSfxSelect" class="field-label">Efeito Sonoro</label>
+                        <select id="itemTransicaoSfxSelect" class="select-field">
+                          <option value="none">Usar Padrão</option>
+                          <option value="whoosh">Whoosh (Vento)</option>
+                          <option value="camera">Câmera</option>
+                          <option value="click">Click</option>
+                          <option value="notificacao">Notificação (Plim)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </details>
 
                 <!-- Expandable Advanced Settings (Only Narration Text now) -->
                 <details class="advanced-details" style="margin-top: 4px;">

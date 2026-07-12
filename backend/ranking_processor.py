@@ -157,9 +157,9 @@ def _render_side_list_png(ranking: dict, current_posicao: int) -> str | None:
         itens_visuais = sorted(ranking.get("itens", []), key=lambda x: x.get("posicao", 0))
         
         # Medidas equivalentes ao frontend:
-        y_offset = int(ranking.get("itens_y", 538))
+        y_offset = 685
         x_offset = 65
-        line_height = 70
+        line_height = 80
         
         font_file = font_path(ranking.get("font", FONT_DEFAULT))
         try:
@@ -169,6 +169,16 @@ def _render_side_list_png(ranking: dict, current_posicao: int) -> str | None:
             
         img = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
+        
+        esquema = ranking.get("esquema_cores", "roxo_verde")
+        color_map = {
+            "roxo_verde": ("#8B5CF6", "#00FF66"),
+            "azul_amarelo": ("#3B82F6", "#FFD400"),
+            "cinza_ciano": ("#A1A1AA", "#00BDFF"),
+            "rosa_roxo": ("#FF2D95", "#8B5CF6"),
+            "amarelo_verde": ("#FFD400", "#00FF66"),
+        }
+        past_color, current_color = color_map.get(esquema, ("#8B5CF6", "#00FF66"))
         
         for it in itens_visuais:
             pos = it.get("posicao")
@@ -188,19 +198,21 @@ def _render_side_list_png(ranking: dict, current_posicao: int) -> str | None:
                 
             num_text = f"{pos}º"
             
-            # Destaque visual apenas no título: VERDE para o item atual, AMARELO para os passados
+            # Destaque visual apenas no título: cor atual ou cor passada conforme o esquema
             is_current = (pos == current_posicao)
-            title_color = "#00FF66" if is_current else "#FFD400"
+            title_color = current_color if is_current else past_color
             
-            # 1. Desenha o número (sempre branco)
-            draw.text((x_offset, y_offset), num_text, font=font, fill="white", 
-                      stroke_width=3, stroke_fill="black")
+            # 1. Desenha o número (primeiro contorno grosso preto, depois o interior branco)
+            draw.text((x_offset, y_offset), num_text, font=font, fill="black", 
+                      stroke_width=5, stroke_fill="black")
+            draw.text((x_offset, y_offset), num_text, font=font, fill="white")
             
-            # 2. Desenha o título do lado
+            # 2. Desenha o título do lado (primeiro contorno grosso preto, depois a cor do preenchimento)
             if titulo:
                 num_width = draw.textlength(num_text + " ", font=font)
-                draw.text((x_offset + num_width, y_offset), titulo, font=font, fill=title_color, 
-                          stroke_width=3, stroke_fill="black")
+                draw.text((x_offset + num_width, y_offset), titulo, font=font, fill="black", 
+                          stroke_width=5, stroke_fill="black")
+                draw.text((x_offset + num_width, y_offset), titulo, font=font, fill=title_color)
             
             y_offset += line_height
             
@@ -269,8 +281,13 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
     out_path = os.path.join(OUTPUT_DIR, f"rk_item_{idx}_{vid_id}.mp4")
 
     # PNGeis (lista lateral + título)
-    sidelist_png = _render_side_list_png(ranking, posicao)
-    title_png = _render_title_png(ranking, item)
+    LAYERED_TRANSITIONS = True
+    if LAYERED_TRANSITIONS:
+        sidelist_png = None
+        title_png = None
+    else:
+        sidelist_png = _render_side_list_png(ranking, posicao)
+        title_png = _render_title_png(ranking, item)
     # ── Render tarja como PNG via MoviePy (1 frame, rápido) ──
     tarja_png = None
     tarja_dict = item.get("tarja")
@@ -285,7 +302,11 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
             tc.save_frame(tarja_png, t=0)
             tc.close()
 
-    overlay_path_local = OVERLAYS.get(ranking.get("overlay", "1")) if ranking.get("overlay") else None
+    LAYERED_TRANSITIONS = True
+    if LAYERED_TRANSITIONS:
+        overlay_path_local = None
+    else:
+        overlay_path_local = OVERLAYS.get(ranking.get("overlay", "1")) if ranking.get("overlay") else None
     video_y = int(item.get("video_y", VIDEO_Y_DEFAULT))
     scale_w = int(WIDTH * VIDEO_SCALE_RATIO_HORIZONTAL)
     scale_h = int(HEIGHT * VIDEO_SCALE_RATIO_VERTICAL)
@@ -297,9 +318,11 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
 
     filtros.append(
         f"[0:v]split=2[v_bg][v_main];"
-        f"[v_bg]scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,crop={WIDTH}:{HEIGHT},boxblur=25:5[bg];"
+        f"[v_bg]scale='if(gt(iw,ih),1.45*{scale_w},-2)':'if(gt(iw,ih),-2,1.35*{scale_h})',boxblur=12:3[bg_blurred];"
+        f"color=c=black:s={WIDTH}x{HEIGHT}:r={RANKING_FPS}[bg_black];"
+        f"[bg_black][bg_blurred]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[bg_canvas];"
         f"[v_main]scale='if(gt(iw,ih),{scale_w},-2)':'if(gt(iw,ih),-2,{scale_h})':flags=lanczos[vid];"
-        f"[bg][vid]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[cur]"
+        f"[bg_canvas][vid]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[cur]"
     )
     cur = "cur"
 
@@ -416,6 +439,11 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
         filtros.append(f"[0:a]volume={vol_base}[aout]")
         a_map = "[aout]"
 
+    # Normalizar as propriedades de vídeo (FPS, formato de cor, timebase) para garantir que
+    # todos os clipes de itens fiquem idênticos antes de entrar nas transições!
+    filtros.append(f"[{cur}]fps={RANKING_FPS},format=yuv420p,settb=1/{RANKING_FPS}[final_v]")
+    cur = "final_v"
+
     cmd = inputs + [
         "-filter_complex", ";".join(filtros),
         "-map", f"[{cur}]", "-map", a_map,
@@ -487,77 +515,79 @@ def _mix_narracao_simples(video_path: str, wav_path: str) -> bool:
 
 # ── 4. Transições ───────────────────────────────────────────────────────────────
 
-def _gerar_clipe_transicao(tipo: str, dur_s: float, seed_path: str | None = None) -> str | None:
-    """Gera um clipe de transição curto (mp4) do tipo solicitado."""
-    fd, out = tempfile.mkstemp(suffix=".mp4", prefix="rk_trans_", dir=_rank_tmp_dir())
-    os.close(fd)
-    if tipo == "nenhum":
-        return None
-    fps = RANKING_FPS
-    frames = max(2, int(dur_s * fps))
-    try:
-        if tipo == "flash":
-            # Pisca preto muito rápido (Fade Out/In black)
-            vf = f"color=c=black:s={WIDTH}x{HEIGHT}:r={fps},fade=t=in:st=0:d={dur_s/2},fade=t=out:st={dur_s/2}:d={dur_s/2}"
-        elif tipo == "zoom_corte":
-            vf = (f"color=c=black:s={WIDTH}x{HEIGHT}:r={fps},"
-                  f"zoompan=z='min(zoom+0.1,2)':d={frames}:s={WIDTH}x{HEIGHT},"
-                  f"fade=t=in:st=0:d=0.05")
-        elif tipo == "glitch":
-            vf = (f"color=c=black:s={WIDTH}x{HEIGHT}:r={fps},"
-                  f"format=gray,noise=alls=40:allf=t+u,eq=contrast=1.4:brightness=0.1")
-        else:
-            vf = f"color=c=white:s={WIDTH}x{HEIGHT}:r={fps}"
-        cmd = [
-            "ffmpeg", "-y", "-loglevel", "error",
-            "-f", "lavfi", "-i", vf,
-            "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-            "-t", f"{dur_s:.2f}",
-            "-c:v", CODEC_VIDEO, *FFMPEG_PARAMS,
-            "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
-            out,
-        ]
-        r = _run(cmd, timeout=60)
-        if r.returncode == 0 and os.path.exists(out):
-            return out
-        return None
-    except Exception as e:
-        print(f"[ranking] transição falhou: {e}")
-        return None
-
-
 def aplicar_transicao(clip_a: str, clip_b: str, tipo: str, sfx_path: str | None) -> str | None:
     """
-    Concatena clip_a + transição + clip_b. Se houver SFX, mixa no ponto de
-    junção (início da transição).
+    Concatena clip_a + transição + clip_b.
+    Se tipo for 'none' ou inválido, realiza corte seco (concatenar_simples).
     """
-    trans = _gerar_clipe_transicao(tipo, RANKING_TRANSICAO_DUR_S)
-    if not trans:
-        # Sem transição: concatena direto
+    if not tipo or tipo == "none":
         return concatenar_simples([clip_a, clip_b])
-    fd, out = tempfile.mkstemp(suffix=".mp4", prefix="rk_join_", dir=_rank_tmp_dir())
+
+    # Mapeamento do tipo para o xfade do FFmpeg (tipo_transicao, duracao_segundos)
+    mapping = {
+        "fade_preto": ("fade_preto", 0.8),
+        "slide_up": ("slideup", 0.5),
+        "slide_left": ("slideleft", 0.5),
+    }
+    
+    if tipo not in mapping:
+        return concatenar_simples([clip_a, clip_b])
+
+    xfade_type, dur_s = mapping[tipo]
+
+    dur_a = _get_video_duration(clip_a) or 0.0
+    if dur_a <= dur_s:
+        # Se clip_a for muito curto para a transição, faz corte seco
+        return concatenar_simples([clip_a, clip_b])
+
+    fd, out = tempfile.mkstemp(suffix=".mp4", prefix="rk_trans_", dir=_rank_tmp_dir())
     os.close(fd)
 
-    parts = [clip_a, trans, clip_b]
-    list_file = os.path.join(_rank_tmp_dir(), "rk_concat_list.txt")
-    with open(list_file, "w", encoding="utf-8") as f:
-        for p in parts:
-            f.write(f"file '{p.replace(chr(92), '/')}'\n")
+    if xfade_type == "fade_preto":
+        # Para evitar qualquer desync de áudio/vídeo e garantir que o item anterior termine de forma abrupta e limpa,
+        # cortamos o final do clipe anterior (dur_a - dur_s) e concatenamos com o clipe seguinte (que entra com fade-in de 0.8s)
+        offset = dur_a - dur_s
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-i", clip_a, "-i", clip_b,
+            "-filter_complex",
+            f"[0:v]trim=end={offset:.2f},setpts=PTS-STARTPTS[v0];"
+            f"[0:a]atrim=end={offset:.2f},asetpts=PTS-STARTPTS[a0];"
+            f"[1:v]fade=t=in:st=0:d={dur_s:.2f}[v1];"
+            f"[1:a]afade=t=in:st=0:d={dur_s:.2f}[a1];"
+            f"[v0][v1]concat=n=2:v=1:a=0[v];"
+            f"[a0][a1]concat=n=2:v=0:a=1[a]",
+            "-map", "[v]", "-map", "[a]",
+            "-c:v", CODEC_VIDEO, *FFMPEG_PARAMS,
+            "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
+            out
+        ]
+    else:
+        # Slides usam xfade e acrossfade com overlap de 0.5s
+        offset = dur_a - dur_s
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-i", clip_a, "-i", clip_b,
+            "-filter_complex",
+            f"[0:v]setpts=PTS-STARTPTS[v0];"
+            f"[1:v]setpts=PTS-STARTPTS[v1];"
+            f"[v0][v1]xfade=transition={xfade_type}:duration={dur_s:.2f}:offset={offset:.2f}[v];"
+            f"[0:a][1:a]acrossfade=d={dur_s:.2f}[a]",
+            "-map", "[v]", "-map", "[a]",
+            "-c:v", CODEC_VIDEO, *FFMPEG_PARAMS,
+            "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
+            out
+        ]
 
-    cmd = [
-        "ffmpeg", "-y", "-loglevel", "error",
-        "-f", "concat", "-safe", "0", "-i", list_file,
-        "-c:v", CODEC_VIDEO, *FFMPEG_PARAMS,
-        "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
-        out,
-    ]
-    r = _run(cmd, timeout=300)
-    if r.returncode != 0:
-        print(f"[ranking] join falhou: {r.stderr.decode('utf-8','replace')[-300:]}")
-        try: os.unlink(out)
+    r = _run(cmd, timeout=120)
+    if r.returncode == 0 and os.path.exists(out):
+        try: os.unlink(clip_a)
         except OSError: pass
+        return out
+    else:
+        err = r.stderr.decode("utf-8", errors="replace") if r.stderr else ""
+        print(f"[ranking] transicao ({tipo}) falhou, usando corte seco. Erro: {err}")
         return concatenar_simples([clip_a, clip_b])
-    return out
 
 
 def concatenar_simples(paths: list[str]) -> str | None:
@@ -581,11 +611,12 @@ def concatenar_simples(paths: list[str]) -> str | None:
     return None
 
 
-def _mixar_sfx_em_ponto(video_path: str, sfx_path: str, timestamp_s: float) -> str:
-    """Mixa um efeito sonoro no vídeo em um timestamp específico (em segundos)."""
+def _mixar_sfx_em_ponto(video_path: str, sfx_path: str, timestamp_s: float, anticipation_s: float = 0.20) -> str:
+    """Mixa um efeito sonoro no vídeo em um timestamp específico (em segundos) com antecipação."""
     if not sfx_path or not os.path.exists(sfx_path):
         return video_path
-    delay_ms = max(0, int(timestamp_s * 1000))
+    delay_s = max(0.0, timestamp_s - anticipation_s)
+    delay_ms = int(delay_s * 1000)
     fd, out = tempfile.mkstemp(suffix=".mp4", prefix="rk_sfx_", dir=_rank_tmp_dir())
     os.close(fd)
     cmd = [
@@ -609,20 +640,87 @@ def _mixar_sfx_em_ponto(video_path: str, sfx_path: str, timestamp_s: float) -> s
     return video_path
 
 
-def concatenar_ranking(item_paths: list[str], transicao_tipo: str, sfx_path: str | None) -> str | None:
-    """Concatena os itens inserindo transições e mixando o efeito sonoro na troca entre cada par."""
+def concatenar_ranking(item_paths: list[str], itens_ordenados: list[dict], global_sfx: str, transicao_tipo: str) -> str | None:
+    """Concatena os itens inserindo transições e mixando o efeito sonoro customizado ou global na troca entre cada par."""
     if not item_paths:
         return None
+
+    # 1. Aplicar a transição de entrada do primeiro item (vindo do preto), se houver.
+    first_item = itens_ordenados[0]
+    tipo_trans_first = first_item.get("transicao_tipo", "default")
+    if not tipo_trans_first or tipo_trans_first == "default":
+        tipo_trans_first = transicao_tipo
+
+    if tipo_trans_first and tipo_trans_first != "none":
+        dur_s = 0.8 if tipo_trans_first == "fade_preto" else 0.5
+        fd, black_path = tempfile.mkstemp(suffix=".mp4", prefix="rk_start_black_", dir=_rank_tmp_dir())
+        os.close(fd)
+        
+        # Cria um vídeo preto curto ligeiramente maior que dur_s para passar na validação (dur_a > dur_s)
+        dur_black = dur_s + 0.1
+        cmd_black = [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-f", "lavfi", "-i", f"color=c=black:s={WIDTH}x{HEIGHT}:r={RANKING_FPS}",
+            "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+            "-t", f"{dur_black:.2f}",
+            "-c:v", CODEC_VIDEO, *FFMPEG_PARAMS,
+            "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
+            black_path
+        ]
+        r_black = _run(cmd_black, timeout=30)
+        if r_black.returncode == 0 and os.path.exists(black_path):
+            joined_first = aplicar_transicao(black_path, item_paths[0], tipo_trans_first, None)
+            if joined_first:
+                item_paths[0] = joined_first
+            try: os.unlink(black_path)
+            except OSError: pass
+
     if len(item_paths) == 1:
         return item_paths[0]
+
     result = item_paths[0]
-    for nxt in item_paths[1:]:
+    for idx, nxt in enumerate(item_paths[1:], start=1):
+        entering_item = itens_ordenados[idx]
+        
+        # Tipo de transição customizada por item (ou fallback para global)
+        tipo_trans = entering_item.get("transicao_tipo", "default")
+        if not tipo_trans or tipo_trans == "default":
+            tipo_trans = transicao_tipo
+
+        # Transição customizada por som (ou fallback para global)
+        transicao_sfx = entering_item.get("transicao_sfx", "none")
+        if not transicao_sfx or transicao_sfx == "none":
+            transicao_sfx = global_sfx
+
+        sfx_file = None
+        if transicao_sfx and transicao_sfx != "none":
+            for ext in [".mp3", ".wav", ".MP3", ".WAV"]:
+                cand = os.path.join(SFX_DIR, f"{transicao_sfx}{ext}")
+                if os.path.exists(cand):
+                    sfx_file = cand
+                    break
+
         dur_before = _get_video_duration(result) or 0.0
-        joined = aplicar_transicao(result, nxt, transicao_tipo, sfx_path)
+        joined = aplicar_transicao(result, nxt, tipo_trans, sfx_file)
         if not joined:
             return None
-        if sfx_path and os.path.exists(sfx_path):
-            joined = _mixar_sfx_em_ponto(joined, sfx_path, dur_before)
+
+        if sfx_file and os.path.exists(sfx_file):
+            # Para fade_preto, a tela corta para o preto no início da transição (dur_before - 0.8).
+            # Portanto, todos os efeitos sonoros devem tocar exatamente no início (dur_before - 0.8).
+            # Para slides, o movimento começa em (dur_before - 0.5) e o corte central ocorre em (dur_before - 0.25).
+            if tipo_trans == "fade_preto":
+                sfx_delay_s = max(0.0, dur_before - 0.8)
+            else:
+                # slide_up ou slide_left
+                transition_start_s = max(0.0, dur_before - 0.5)
+                if transicao_sfx in ["click", "camera", "notificacao"]:
+                    sfx_delay_s = transition_start_s + 0.25  # Midpoint da transição
+                else:
+                    sfx_delay_s = transition_start_s  # Whoosh no início
+
+            joined = _mixar_sfx_em_ponto(joined, sfx_file, sfx_delay_s, anticipation_s=0.0)
+
         result = joined
     return result
 
@@ -801,17 +899,121 @@ def montar_ranking(ranking: dict, emit) -> str | None:
             return None
 
     emit({"type": "status", "value": "concatenando"})
-    sfx_file = None
-    transicao_sfx = ranking.get("transicao_sfx", "none")
-    if transicao_sfx and transicao_sfx != "none":
-        for ext in [".mp3", ".wav", ".MP3", ".WAV"]:
-            cand = os.path.join(SFX_DIR, f"{transicao_sfx}{ext}")
-            if os.path.exists(cand):
-                sfx_file = cand
-                break
-    final = concatenar_ranking(item_paths, ranking.get("transicao_tipo", "flash"), sfx_file)
+    global_sfx = ranking.get("transicao_sfx", "none")
+    final = concatenar_ranking(
+        item_paths,
+        itens_ordenados,
+        global_sfx,
+        ranking.get("transicao_tipo", "flash")
+    )
     if not final:
         return None
+
+    # ── Layered Transitions Overlay Step ──
+    try:
+        emit({"type": "status", "value": "aplicando_overlays"})
+        
+        # Calculate timings
+        durations = [_get_video_duration(p) for p in item_paths]
+        timings = []
+        current_time = 0.0
+        
+        tipo_trans_first = itens_ordenados[0].get("transicao_tipo", "default")
+        if not tipo_trans_first or tipo_trans_first == "default":
+            tipo_trans_first = ranking.get("transicao_tipo", "flash")
+            
+        entry_offset = 0.0
+        if tipo_trans_first and tipo_trans_first != "none":
+            dur_s = 0.8 if tipo_trans_first == "fade_preto" else 0.5
+            dur_black = dur_s + 0.1
+            entry_offset = dur_black - dur_s
+            current_time = entry_offset
+
+        for idx, p in enumerate(item_paths):
+            dur = durations[idx] or 0.0
+            transition_out_s = 0.0
+            if idx < len(item_paths) - 1:
+                next_item = itens_ordenados[idx + 1]
+                tipo_trans = next_item.get("transicao_tipo", "default")
+                if not tipo_trans or tipo_trans == "default":
+                    tipo_trans = ranking.get("transicao_tipo", "flash")
+                if tipo_trans and tipo_trans != "none":
+                    transition_out_s = 0.8 if tipo_trans == "fade_preto" else 0.5
+            
+            end_time = current_time + dur - (transition_out_s / 2)
+            timings.append((current_time, end_time))
+            current_time = current_time + dur - transition_out_s
+
+        # Generate overlay PNGs
+        overlay_path_local = OVERLAYS.get(ranking.get("overlay", "1")) if ranking.get("overlay") else None
+        
+        title_png = _render_title_png(ranking, itens_ordenados[0])  # Use title from ranking config
+        
+        sidelist_pngs = []
+        for idx, item in enumerate(itens_ordenados):
+            pos = item.get("posicao", idx + 1)
+            sidelist_pngs.append(_render_side_list_png(ranking, pos))
+
+        # Build FFmpeg command to overlay static mask, general title, and dynamic side lists
+        inputs = ["ffmpeg", "-y", "-loglevel", "error", "-i", final]
+        filter_nodes = []
+        curr_in = "0:v"
+        next_input_idx = 1
+        
+        # 1. Overlay Mask
+        if overlay_path_local and os.path.exists(overlay_path_local):
+            inputs += ["-loop", "1", "-i", overlay_path_local]
+            filter_nodes.append(f"[{curr_in}][{next_input_idx}:v]overlay=0:0:shortest=1[ov_mask]")
+            curr_in = "ov_mask"
+            next_input_idx += 1
+            
+        # 2. General Title
+        if title_png and os.path.exists(title_png):
+            inputs += ["-loop", "1", "-i", title_png]
+            title_y = int(ranking.get("title_y", TITLE_Y_DEFAULT))
+            filter_nodes.append(f"[{curr_in}][{next_input_idx}:v]overlay=(W-w)/2:{title_y}:shortest=1[ov_title]")
+            curr_in = "ov_title"
+            next_input_idx += 1
+            
+        # 3. Side Lists
+        for idx, (sidelist_path, (start_t, end_t)) in enumerate(zip(sidelist_pngs, timings)):
+            if sidelist_path and os.path.exists(sidelist_path):
+                inputs += ["-loop", "1", "-i", sidelist_path]
+                out_node = f"ov_sd_{idx}"
+                filter_nodes.append(
+                    f"[{curr_in}][{next_input_idx}:v]overlay=0:0:enable='between(t,{start_t:.3f},{end_t:.3f})'[{out_node}]"
+                )
+                curr_in = out_node
+                next_input_idx += 1
+                
+        # Run final composition
+        temp_out = final + ".layered.mp4"
+        cmd = inputs + [
+            "-filter_complex", ";".join(filter_nodes),
+            "-map", f"[{curr_in}]", "-map", "0:a",
+            "-c:v", CODEC_VIDEO, *FFMPEG_PARAMS,
+            "-c:a", "copy",
+            temp_out
+        ]
+        
+        r_comp = _run(cmd, timeout=300)
+        
+        # Clean up temporary PNG files
+        if title_png and os.path.exists(title_png):
+            try: os.unlink(title_png)
+            except OSError: pass
+        for p_sd in sidelist_pngs:
+            if p_sd and os.path.exists(p_sd):
+                try: os.unlink(p_sd)
+                except OSError: pass
+                
+        if r_comp.returncode == 0 and os.path.exists(temp_out):
+            os.replace(temp_out, final)
+        else:
+            err = r_comp.stderr.decode("utf-8", errors="replace") if r_comp.stderr else ""
+            print(f"[ranking] layered overlay composition falhou: {err}")
+    except Exception as e:
+        print(f"[ranking] erro ao processar layered overlays: {e}")
 
     # Hook de intro (título geral)
     hook = ranking.get("hook")

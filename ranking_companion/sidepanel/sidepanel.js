@@ -27,6 +27,7 @@ const saveSettingsBtn = document.getElementById("saveSettingsBtn");
 
 const rankingSelect = document.getElementById("rankingSelect");
 const refreshRankingsBtn = document.getElementById("refreshRankingsBtn");
+const btnCreateTestPreset = document.getElementById("btnCreateTestPreset");
 const btnToggleCreateRanking = document.getElementById("btnToggleCreateRanking");
 const createRankingPanel = document.getElementById("createRankingPanel");
 const newRankingTitle = document.getElementById("newRankingTitle");
@@ -307,6 +308,9 @@ function setupEventListeners() {
     createRankingPanel.classList.toggle("collapsed");
     btnToggleCreateRanking.textContent = createRankingPanel.classList.contains("collapsed") ? "+ Novo" : "Fechar";
   });
+
+  // Create Test Preset Button
+  btnCreateTestPreset.addEventListener("click", createTestPresetRanking);
 
   // Submit Create Ranking
   btnSubmitCreateRanking.addEventListener("click", createNewRanking);
@@ -623,6 +627,7 @@ function renderRankingItems(ranking) {
     card.className = "position-card";
     card.draggable = true;
     card.setAttribute("data-old-pos", item.posicao);
+    card.setAttribute("data-pos", item.posicao);
 
     if (item.posicao === activePositionEditing) {
       card.style.borderColor = "var(--cyan)";
@@ -633,15 +638,11 @@ function renderRankingItems(ranking) {
       <div class="position-badge ${isTopItem ? "pos-top" : ""}">${item.posicao}</div>
       <div class="position-info">
         <div class="position-title ${!hasLink ? "empty" : ""}">
-          ${hasLink ? (item.titulo_item || "Vídeo " + item.posicao) : "Vazio / Disponível"}
+          ${hasLink ? (item.titulo_item || "Vídeo " + item.posicao) : "Vazio / Clique para atribuir o vídeo da aba"}
         </div>
         <div class="position-meta">${metaHtml}</div>
       </div>
-      <div class="position-actions">
-        <button type="button" class="btn btn-secondary btn-apply-here" data-pos="${item.posicao}">
-          ${hasLink ? "Substituir" : "Inserir"}
-        </button>
-      </div>
+      ${hasLink ? `<button class="btn-substitute" data-pos="${item.posicao}">Substituir</button>` : ""}
     `;
 
     // Drag and Drop Event Listeners
@@ -710,21 +711,39 @@ function renderRankingItems(ranking) {
       }
     });
 
-    // Apply button
-    const applyBtn = card.querySelector(".btn-apply-here");
-    applyBtn.addEventListener("click", (e) => {
-      e.stopPropagation(); // Avoid triggering card click
+    // Make the entire card clickable to trigger edit/load or auto-include
+    card.addEventListener("click", async () => {
       activePositionEditing = item.posicao;
-      applyCurrentVideoToPosition(item.posicao);
-    });
-
-    // Make the entire card clickable to trigger edit/load into the form
-    card.addEventListener("click", () => {
-      if (hasLink) {
-        activePositionEditing = item.posicao;
+      
+      if (!hasLink) {
+        if (currentTabVideoUrl) {
+          // If the card is empty, click to assign the current tab's video
+          await autoAssignTabVideoToPosition(item.posicao, currentTabVideoUrl, currentTabVideoTitle);
+        } else {
+          showStatusMessage("Nenhum vídeo detectado na aba ativa para atribuir!", "error");
+        }
+      } else {
+        // If the card already has a video, click to ONLY open configurations for conference
         populateFormWithItem(item);
       }
     });
+
+    // Add event listener to the substitute button
+    if (hasLink) {
+      const btnSub = card.querySelector(".btn-substitute");
+      if (btnSub) {
+        btnSub.addEventListener("click", async (e) => {
+          e.stopPropagation(); // Prevent triggering the card's click event
+          
+          activePositionEditing = item.posicao;
+          if (currentTabVideoUrl) {
+            await autoAssignTabVideoToPosition(item.posicao, currentTabVideoUrl, currentTabVideoTitle);
+          } else {
+            showStatusMessage("Nenhum vídeo detectado na aba ativa para atribuir!", "error");
+          }
+        });
+      }
+    }
 
     rankingItemsList.appendChild(card);
   });
@@ -766,6 +785,149 @@ async function createNewRanking() {
   } catch (e) {
     console.error(e);
     showStatusMessage("Falha ao criar o ranking", "error");
+  }
+}
+
+async function createTestPresetRanking() {
+  updateStatus("Criando preset de teste...", "checking");
+  try {
+    const res = await fetch(`${API_URL}/api/ranking`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        titulo_geral: "Ranking de Teste 🏆",
+        quantidade: 3,
+        ordem: "decrescente"
+      })
+    });
+
+    if (!res.ok) throw new Error("Erro ao criar ranking");
+    const newRanking = await res.json();
+    const rankingId = newRanking.id;
+
+    const testVideoUrl = "https://www.youtube.com/watch?v=h4NzUoUVi38";
+    const presetItems = [
+      {
+        posicao: 3,
+        titulo_item: "Item de Teste 3",
+        trim_inicio_s: 0.0,
+        trim_fim_s: 5.0,
+        video_y: 150,
+        narracao_texto: "Este é o item número três do nosso teste",
+        transicao_tipo: "fade_preto",
+        transicao_sfx: "whoosh"
+      },
+      {
+        posicao: 2,
+        titulo_item: "Item de Teste 2",
+        trim_inicio_s: 5.0,
+        trim_fim_s: 10.0,
+        video_y: 150,
+        narracao_texto: "Seguindo em frente, aqui está o item número dois",
+        transicao_tipo: "slide_up",
+        transicao_sfx: "camera"
+      },
+      {
+        posicao: 1,
+        titulo_item: "Item de Teste 1",
+        trim_inicio_s: 10.0,
+        trim_fim_s: 15.0,
+        video_y: 150,
+        narracao_texto: "E por fim, o grande vencedor do nosso teste",
+        transicao_tipo: "slide_left",
+        transicao_sfx: "click"
+      }
+    ];
+
+    for (const item of presetItems) {
+      const itemRes = await fetch(`${API_URL}/api/ranking/${rankingId}/items/${item.posicao}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          link: testVideoUrl,
+          titulo_item: item.titulo_item,
+          trim_inicio_s: item.trim_inicio_s,
+          trim_fim_s: item.trim_fim_s,
+          video_y: item.video_y,
+          narracao_texto: item.narracao_texto,
+          transicao_tipo: item.transicao_tipo,
+          transicao_sfx: item.transicao_sfx,
+          tarja: {
+            ativo: true,
+            texto: item.titulo_item,
+            x: 0.35,
+            y: 0.45,
+            w: 0.30,
+            h: 0.07
+          }
+        })
+      });
+      if (!itemRes.ok) throw new Error(`Erro ao salvar item ${item.posicao}`);
+    }
+
+    activeRankingId = rankingId;
+    chrome.storage.local.set({ lastRankingId: activeRankingId });
+    showStatusMessage("Preset de teste criado!", "success");
+    await loadRankings();
+  } catch (e) {
+    console.error(e);
+    showStatusMessage("Falha ao criar o preset", "error");
+  }
+}
+
+async function autoAssignTabVideoToPosition(posicao, url, title) {
+  if (!activeRankingId) {
+    showStatusMessage("Selecione um ranking primeiro!", "error");
+    return;
+  }
+
+  updateStatus("Salvando item...", "checking");
+
+  try {
+    const existingItem = activeRankingData && activeRankingData.itens ? activeRankingData.itens.find(it => it.posicao === posicao) : null;
+    const sameVideo = existingItem && existingItem.link === url;
+    
+    const trimInicio = sameVideo ? (existingItem.trim_inicio_s !== undefined ? existingItem.trim_inicio_s : 0.0) : 0.0;
+    const trimFim = sameVideo ? (existingItem.trim_fim_s !== undefined ? existingItem.trim_fim_s : 10.0) : 10.0;
+    const videoY = sameVideo ? (existingItem.video_y !== undefined ? existingItem.video_y : 150) : 150;
+    const narration = sameVideo ? (existingItem.narracao_texto || "") : "";
+    const transicaoSfx = sameVideo ? (existingItem.transicao_sfx || "default") : "default";
+    const transicaoTipo = sameVideo ? (existingItem.transicao_tipo || "fade_preto") : "fade_preto";
+    const tarja = sameVideo ? (existingItem.tarja || null) : null;
+
+    const res = await fetch(`${API_URL}/api/ranking/${activeRankingId}/items/${posicao}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        link: url,
+        titulo_item: sameVideo ? (existingItem.titulo_item || "") : "",
+        trim_inicio_s: trimInicio,
+        trim_fim_s: trimFim,
+        video_y: videoY,
+        narracao_texto: narration,
+        transicao_sfx: transicaoSfx,
+        transicao_tipo: transicaoTipo,
+        tarja: tarja
+      })
+    });
+
+    if (!res.ok) throw new Error("Falha ao atualizar");
+    
+    showStatusMessage(`Posição ${posicao} atualizada!`, "success");
+    await checkApiConnection();
+    await loadRankingDetails(activeRankingId);
+
+    // After updating, immediately load this item's details into the editor form!
+    if (activeRankingData && activeRankingData.itens) {
+      const updatedItem = activeRankingData.itens.find(it => it.posicao === posicao);
+      if (updatedItem) {
+        populateFormWithItem(updatedItem);
+      }
+    }
+  } catch (e) {
+    console.error(e);
+    showStatusMessage(`Erro ao atualizar posição ${posicao}`, "error");
+    checkApiConnection();
   }
 }
 
@@ -849,7 +1011,6 @@ function populateFormWithItem(item) {
   updateLivePreviewTarjaDOM(item);
 
   // Render video preview in real time
-  currentTabVideoUrl = item.link;
   triggerLivePreviewLoading(item.link, item.titulo_item);
 
   // Refresh items list view to highlight active editing item

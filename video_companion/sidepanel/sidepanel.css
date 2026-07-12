@@ -764,7 +764,7 @@ input.input-readonly {
   height: 100%;
   object-fit: cover;
   z-index: 2;
-  filter: blur(15px) brightness(0.65);
+  filter: blur(8px) brightness(0.65);
   pointer-events: none;
 }
 .live-preview-fallback {

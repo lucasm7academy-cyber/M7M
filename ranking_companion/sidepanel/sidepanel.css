@@ -376,8 +376,11 @@ input.input-readonly {
   opacity: 0;
   pointer-events: none;
   padding-top: 0 !important;
+  padding-bottom: 0 !important;
   margin-top: 0 !important;
-  border-top: none !important;
+  margin-bottom: 0 !important;
+  border: none !important;
+  display: none !important;
 }
 
 /* ── Select field custom styling ── */
@@ -942,3 +945,24 @@ input.input-readonly {
   z-index: 7;
   box-shadow: 0 0 6px var(--cyan);
 }
+
+/* ── Substitute Button in Position Cards ── */
+.btn-substitute {
+  background: var(--cyan-soft);
+  border: 1px solid var(--cyan);
+  border-radius: 4px;
+  color: var(--cyan);
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  text-transform: uppercase;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+.btn-substitute:hover {
+  background: var(--cyan);
+  color: #000;
+}
+

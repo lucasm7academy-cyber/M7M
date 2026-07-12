@@ -1530,7 +1530,9 @@ def _adicionar_trilha_fundo(video_path: str, musica_fundo: str, modo: str) -> bo
 def adicionar_cta_final_audio(video_path: str) -> bool:
     """
     Adiciona no final do vídeo (sem legendas) o áudio CTA "já segue nois ai"
-    seguido pelo som de notificação (Plinnnn), congelando o último frame por ~2.4s.
+    seguido pelo som de notificação (Plinnnn), misturando com o áudio original
+    do vídeo e abaixando o volume do áudio original nos últimos ~2.4s.
+    NÃO congela o frame final. Copia a stream de vídeo para máxima performance.
     """
     from config import SFX_DIR
     cta_voice = os.path.join(SFX_DIR, "cta_segue_nois.mp3")
@@ -1545,66 +1547,56 @@ def adicionar_cta_final_audio(video_path: str) -> bool:
         return False
 
     tmpdir = os.path.dirname(video_path)
-    last_frame_img = tempfile.mktemp(suffix=".jpg", prefix="cta_last_", dir=tmpdir)
-    cta_tail = tempfile.mktemp(suffix=".mp4", prefix="cta_tail_", dir=tmpdir)
-    out_concat = video_path + ".cta.mp4"
-    list_file = tempfile.mktemp(suffix=".txt", prefix="cta_lst_", dir=tmpdir)
+    out_mixed = video_path + ".cta.mp4"
 
     try:
-        # 1. Extrair último frame como imagem
-        cmd_img = [
-            "ffmpeg", "-y", "-loglevel", "error",
-            "-sseof", "-0.1", "-i", video_path,
-            "-vframes", "1", "-q:v", "2", last_frame_img
+        # Obter duração total do vídeo original
+        cmd_dur = [
+            "ffprobe", "-v", "error", "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1", video_path
         ]
-        subprocess.run(cmd_img, capture_output=True, timeout=30)
-        if not os.path.exists(last_frame_img):
-            return False
+        res = subprocess.run(cmd_dur, capture_output=True, text=True, timeout=10)
+        dur = float(res.stdout.strip())
+        
+        # O CTA dura 2.4s no total. O som começa em dur - 2.4s
+        start_time = max(0.0, dur - 2.4)
+        delay_ms = int(start_time * 1000)
+        bell_delay_ms = int((start_time + 1.15) * 1000)
 
-        # 2. Gerar vídeo final de 2.4s com a imagem e a mixagem da voz + bell
-        cmd_tail = [
+        # Comando ffmpeg para mixar os áudios copiando o vídeo (-c:v copy)
+        cmd_mix = [
             "ffmpeg", "-y", "-loglevel", "error",
-            "-loop", "1", "-i", last_frame_img,
+            "-i", video_path,
             "-i", cta_voice,
             "-i", cta_bell,
             "-filter_complex",
-            "[1:a]volume=2.2[v];[2:a]adelay=1150|1150,volume=1.8[b];[v][b]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0[aout]",
+            f"[1:a]volume=2.2,adelay={delay_ms}|{delay_ms}[v];"
+            f"[2:a]volume=1.8,adelay={bell_delay_ms}|{bell_delay_ms}[b];"
+            f"[0:a]volume=eval=frame:volume='if(gte(t,{start_time:.2f}),0.15,1.0)'[ad];"
+            f"[ad][v][b]amix=inputs=3:duration=first:dropout_transition=0:normalize=0[aout]",
             "-map", "0:v:0", "-map", "[aout]",
-            "-t", "2.40",
-            "-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",
+            "-c:v", "copy",
             "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
-            cta_tail
+            out_mixed
         ]
-        subprocess.run(cmd_tail, capture_output=True, timeout=60)
-        if not os.path.exists(cta_tail):
-            return False
-
-        # 3. Concatenar o vídeo original e o cta_tail
-        with open(list_file, "w", encoding="utf-8") as f:
-            f.write(f"file '{video_path.replace(chr(92), '/')}'\n")
-            f.write(f"file '{cta_tail.replace(chr(92), '/')}'\n")
-
-        cmd_concat = [
-            "ffmpeg", "-y", "-loglevel", "error",
-            "-f", "concat", "-safe", "0", "-i", list_file,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
-            out_concat
-        ]
-        res = subprocess.run(cmd_concat, capture_output=True, timeout=180)
-        if res.returncode == 0 and os.path.exists(out_concat):
-            os.replace(out_concat, video_path)
-            print("[CTA] Áudio final 'já segue nois ai + plinnn' adicionado com sucesso!")
+        res_run = subprocess.run(cmd_mix, capture_output=True, timeout=120)
+        if res_run.returncode == 0 and os.path.exists(out_mixed):
+            os.replace(out_mixed, video_path)
+            print("[CTA] Áudio final 'já segue nois ai + plinnn' mixado com sucesso!")
             return True
-        return False
+        else:
+            if res_run.stderr:
+                print(f"[CTA] Falha no comando ffmpeg. stderr: {res_run.stderr.decode('utf-8', errors='ignore')}")
+            return False
     except Exception as e:
         print(f"[CTA] Erro adicionando CTA final: {e}")
         return False
     finally:
-        for p in [last_frame_img, cta_tail, out_concat, list_file]:
-            if os.path.exists(p):
-                try: os.unlink(p)
-                except OSError: pass
+        if os.path.exists(out_mixed):
+            try:
+                os.remove(out_mixed)
+            except:
+                pass
 
 
 async def processar_video(item: dict, clip_index: int, emit) -> str | None:
@@ -1733,9 +1725,11 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
         # scale → blurred bg → overlay com video_y (pad filter bugado neste ffmpeg)
         filtros.append(
             f"[0:v]split=2[v_bg][v_main];"
-            f"[v_bg]scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=increase,crop={WIDTH}:{HEIGHT},boxblur=25:5[bg];"
+            f"[v_bg]scale='if(gt(iw,ih),1.45*{scale_w},-2)':'if(gt(iw,ih),-2,1.35*{scale_h})',boxblur=12:3[bg_blurred];"
+            f"color=c=black:s={WIDTH}x{HEIGHT}:r={RANKING_FPS}[bg_black];"
+            f"[bg_black][bg_blurred]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[bg_canvas];"
             f"[v_main]scale='if(gt(iw,ih),{scale_w},-2)':'if(gt(iw,ih),-2,{scale_h})':flags=lanczos[vid];"
-            f"[bg][vid]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[cur]"
+            f"[bg_canvas][vid]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[cur]"
         )
         cur = "cur"
 
