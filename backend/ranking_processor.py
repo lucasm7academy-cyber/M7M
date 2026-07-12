@@ -25,7 +25,7 @@ from config import (
     RANKING_BADGE_FONT_SIZE, RANKING_BADGE_COR,
     RANKING_BADGE_TOP_FRAC, RANKING_TARGET_LUFS, RANKING_FPS,
     OUTPUT_DIR, DOWNLOAD_DIR, SFX_DIR, MUSIC_DIR,
-    RANKING_OUTRO_DEFAULT_TEXTO,
+    RANKING_OUTRO_DEFAULT_TEXTO, is_valid_cookies_file,
 )
 from video_processor import (
     GPU_AVAILABLE, CODEC_VIDEO, FFMPEG_PARAMS,
@@ -79,8 +79,9 @@ def baixar_trecho(link: str, inicio_s: float, fim_s: float) -> str | None:
             "force_keyframes_at_cuts": True,
             "download_ranges": download_range_func(None, [(inicio_s, fim_s)]),
         }
-        if os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cookies.txt")):
-            ydl_opts["cookiefile"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cookies.txt")
+        cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "cookies.txt")
+        if os.path.exists(cookies_path) and is_valid_cookies_file(cookies_path):
+            ydl_opts["cookiefile"] = cookies_path
         import yt_dlp
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.extract_info(link, download=True)

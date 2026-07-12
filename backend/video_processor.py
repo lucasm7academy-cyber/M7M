@@ -4,6 +4,11 @@ import time
 import asyncio
 import subprocess
 from config import *
+from config import (
+    WIDTH, HEIGHT, FONT_PATH, TARJA_DEFAULT, COOKIES_FILE,
+    DOWNLOAD_DIR, FRAMES_DIR, OVERLAYS, TITLE_FONT_SIZE,
+    is_valid_cookies_file,
+)
 from moviepy import (
     VideoFileClip, ColorClip, CompositeVideoClip,
     ImageClip, TextClip,
@@ -795,7 +800,7 @@ def _ydl_opts(**kw) -> dict:
     base = {
         "quiet": True, "noplaylist": True, "no_warnings": True,
     }
-    if os.path.exists(COOKIES_FILE):
+    if os.path.exists(COOKIES_FILE) and is_valid_cookies_file(COOKIES_FILE):
         base["cookiefile"] = COOKIES_FILE
     base.update(kw)
     return base
@@ -828,7 +833,7 @@ def baixar_video(url: str, progress_hook=None) -> str:
         "no_warnings": True,
         "progress_hooks": [_hook] if progress_hook else [],
     }
-    if os.path.exists(COOKIES_FILE):
+    if os.path.exists(COOKIES_FILE) and is_valid_cookies_file(COOKIES_FILE):
         ydl_opts["cookiefile"] = COOKIES_FILE
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)

@@ -48,6 +48,18 @@ OUTPUT_DIR   = os.path.join(ROOT, "clips")
 DOWNLOAD_DIR = os.path.join(ROOT, "downloads")
 FRAMES_DIR   = os.path.join(ROOT, "frames")   # cache de frames pro preview
 COOKIES_FILE = os.path.join(ROOT, "cookies.txt")
+
+def is_valid_cookies_file(file_path: str) -> bool:
+    """Verifica se o arquivo de cookies existe e tem o cabeçalho Netscape válido."""
+    if not os.path.exists(file_path):
+        return False
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            first_line = f.readline()
+            return "# Netscape HTTP Cookie File" in first_line or "Netscape" in first_line
+    except Exception:
+        return False
+
 SFX_DIR = os.path.join(ROOT, "sfx")
 MUSIC_DIR = os.path.join(ROOT, "music")
 
