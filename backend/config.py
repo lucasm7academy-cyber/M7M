@@ -338,6 +338,6 @@ RANKING_OUTRO_ESTILOS     = ["none", "textao"]
 RANKING_OUTRO_DEFAULT     = "none"
 RANKING_BADGE_PAD_S       = 0.12           # proporção da largura p/ margem do badge
 RANKING_BADGE_TOP_FRAC    = 0.12           # fração da altura p/ posição do badge
-RANKING_TARGET_LUFS       = -14.0          # normalização de loudness (loudnorm)
+RANKING_TARGET_LUFS       = -13.0          # normalização de loudness (loudnorm)
 RANKING_FPS               = 30
 

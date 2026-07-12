@@ -1023,7 +1023,7 @@ def criar_ranking(req: CreateRankingRequest):
         "font": "Padrão",
         "cor_titulo": "Branco",
         "titulo_borda": True,
-        "itens_y": 710,
+        "itens_y": 740,
         "esquema_cores": "roxo_verde",
     }
     lista_rankings.append(rk)

@@ -1372,7 +1372,7 @@ function updateLivePreviewItems() {
   }
 
   // Items positioning
-  const itensY = 710;
+  const itensY = 740;
   livePreviewItemsList.style.top = `${(itensY / 19.2)}%`;
 
   // Sort and render items
