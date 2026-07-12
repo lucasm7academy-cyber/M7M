@@ -891,22 +891,37 @@ def montar_ranking(ranking: dict, emit) -> str | None:
     print(f"[PROCESSADOR] Qtd: {len(itens_ordenados)} itens | Ordem: {ordem} | Overlay: {ranking.get('overlay')} | Cores: {ranking.get('esquema_cores')}")
     print("="*80 + "\n")
 
-    item_paths: list[str] = []
-    for i, item in enumerate(itens_ordenados):
+    from concurrent.futures import ThreadPoolExecutor
+    
+    item_paths = [None] * len(itens_ordenados)
+    errors = []
+    
+    def process_single_item(i, item):
         try:
             pos = item.get("posicao")
             print(f"[RANKING] [Item {i+1}/{len(itens_ordenados)}] Iniciando processamento do Item #{pos}: '{item.get('titulo_item')}'")
             emit({"type": "item_iniciado", "posicao": item.get("posicao"), "idx": i})
             p = montar_item(ranking, item, item.get("posicao", i + 1), i, emit)
             if not p:
-                emit({"type": "item_erro", "posicao": item.get("posicao"),
-                      "message": "falha ao montar item (link inválido?)"})
-                return None
-            item_paths.append(p)
+                err_msg = "falha ao montar item (link inválido?)"
+                emit({"type": "item_erro", "posicao": item.get("posicao"), "message": err_msg})
+                errors.append((pos, err_msg))
+                return
+            item_paths[i] = p
             emit({"type": "item_concluido", "posicao": item.get("posicao"), "path": p})
         except Exception as e:
             emit({"type": "item_erro", "posicao": item.get("posicao"), "message": str(e)})
-            return None
+            errors.append((item.get("posicao"), str(e)))
+
+    # Executa o processamento concorrente dos itens (paraleliza download e renderização)
+    print(f"[RANKING] ⚡ Iniciando processamento paralelo de todos os {len(itens_ordenados)} itens...")
+    with ThreadPoolExecutor(max_workers=len(itens_ordenados)) as executor:
+        # Executa todos concorrentemente e aguarda a finalização
+        list(executor.map(lambda pair: process_single_item(pair[0], pair[1]), enumerate(itens_ordenados)))
+        
+    if errors or None in item_paths:
+        print(f"[RANKING] ❌ Erro no processamento paralelo dos itens: {errors}")
+        return None
 
     print(f"\n[RANKING] 🔄 Todos os itens processados. Iniciando emenda e transições...")
     emit({"type": "status", "value": "concatenando"})
