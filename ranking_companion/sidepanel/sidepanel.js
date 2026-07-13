@@ -43,6 +43,8 @@ const btnDeleteRanking = document.getElementById("btnDeleteRanking");
 const rankingColorSchemeSelect = document.getElementById("rankingColorSchemeSelect");
 const globalTitleYInput = document.getElementById("globalTitleYInput");
 const globalTitleYVal = document.getElementById("globalTitleYVal");
+const globalItensYInput = document.getElementById("globalItensYInput");
+const globalItensYVal = document.getElementById("globalItensYVal");
 
 const activeMediaSection = document.getElementById("activeMediaSection");
 const noVideoMsg = document.getElementById("noVideoMsg");
@@ -306,6 +308,36 @@ function setupEventListeners() {
       showStatusMessage("Erro ao salvar altura", "error");
     }
   });
+
+  // Sync Height Slider for Global Items (Ranking List)
+  if (globalItensYInput) {
+    globalItensYInput.addEventListener("input", (e) => {
+      const val = e.target.value;
+      globalItensYVal.textContent = val + "px";
+      if (activeRankingData) {
+        activeRankingData.itens_y = parseInt(val, 10);
+        updateLivePreviewItems();
+      }
+    });
+
+    globalItensYInput.addEventListener("change", async (e) => {
+      if (!activeRankingId) return;
+      const val = parseInt(e.target.value, 10);
+      try {
+        const res = await fetch(`${API_URL}/api/ranking/${activeRankingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ itens_y: val })
+        });
+        if (res.ok) {
+          showStatusMessage("Altura do ranking salva!", "success");
+        }
+      } catch (err) {
+        console.error("Erro ao salvar altura do ranking:", err);
+        showStatusMessage("Erro ao salvar altura do ranking", "error");
+      }
+    });
+  }
 
   // Change active Google Drive destination folder
   if (driveFolderSelect) {
@@ -649,6 +681,10 @@ async function loadRankingDetails(rid) {
     }
     globalTitleYInput.value = ranking.title_y || 220;
     globalTitleYVal.textContent = (ranking.title_y || 220) + "px";
+    if (globalItensYInput) {
+      globalItensYInput.value = ranking.itens_y || 538;
+      globalItensYVal.textContent = (ranking.itens_y || 538) + "px";
+    }
 
     renderRankingItems(ranking);
     updateLivePreviewOverlay();
