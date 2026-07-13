@@ -159,13 +159,13 @@ def _render_side_list_png(ranking: dict, current_posicao: int) -> str | None:
         itens_visuais = sorted(ranking.get("itens", []), key=lambda x: x.get("posicao", 0))
         
         # Medidas equivalentes ao frontend:
-        y_offset = 740
+        y_offset = 660
         x_offset = 65
-        line_height = 72
+        line_height = 86
         
         font_file = font_path(ranking.get("font", FONT_DEFAULT))
         try:
-            font = ImageFont.truetype(font_file, 42)
+            font = ImageFont.truetype(font_file, 56)
         except Exception:
             font = ImageFont.load_default()
             
@@ -206,14 +206,14 @@ def _render_side_list_png(ranking: dict, current_posicao: int) -> str | None:
             
             # 1. Desenha o número (primeiro contorno grosso preto, depois o interior branco)
             draw.text((x_offset, y_offset), num_text, font=font, fill="black", 
-                      stroke_width=4, stroke_fill="black")
+                      stroke_width=5, stroke_fill="black")
             draw.text((x_offset, y_offset), num_text, font=font, fill="white")
             
             # 2. Desenha o título do lado (primeiro contorno grosso preto, depois a cor do preenchimento)
             if titulo:
                 num_width = draw.textlength(num_text + " ", font=font)
                 draw.text((x_offset + num_width, y_offset), titulo, font=font, fill="black", 
-                          stroke_width=4, stroke_fill="black")
+                          stroke_width=5, stroke_fill="black")
                 draw.text((x_offset + num_width, y_offset), titulo, font=font, fill=title_color)
             
             y_offset += line_height
