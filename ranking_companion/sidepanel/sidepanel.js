@@ -39,6 +39,8 @@ const selectedRankingConfig = document.getElementById("selectedRankingConfig");
 const globalTitleInput = document.getElementById("globalTitleInput");
 const globalOverlaySelect = document.getElementById("globalOverlaySelect");
 const globalColorSelect = document.getElementById("globalColorSelect");
+const btnDeleteRanking = document.getElementById("btnDeleteRanking");
+const rankingColorSchemeSelect = document.getElementById("rankingColorSchemeSelect");
 const globalTitleYInput = document.getElementById("globalTitleYInput");
 const globalTitleYVal = document.getElementById("globalTitleYVal");
 
@@ -254,6 +256,29 @@ function setupEventListeners() {
     }
   });
 
+  // Change global color scheme select for the selected ranking
+  if (rankingColorSchemeSelect) {
+    rankingColorSchemeSelect.addEventListener("change", async (e) => {
+      if (!activeRankingId) return;
+      const colorVal = e.target.value;
+      try {
+        const res = await fetch(`${API_URL}/api/ranking/${activeRankingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ esquema_cores: colorVal })
+        });
+        if (res.ok) {
+          activeRankingData.esquema_cores = colorVal;
+          showStatusMessage("Esquema de cores atualizado!", "success");
+          updateLivePreviewItems();
+        }
+      } catch (err) {
+        console.error("Erro ao salvar esquema de cores:", err);
+        showStatusMessage("Erro ao salvar esquema de cores", "error");
+      }
+    });
+  }
+
   // Sync Height Slider for Global Title
   globalTitleYInput.addEventListener("input", (e) => {
     const val = e.target.value;
@@ -309,6 +334,34 @@ function setupEventListeners() {
     btnToggleCreateRanking.textContent = createRankingPanel.classList.contains("collapsed") ? "+ Novo" : "Fechar";
   });
 
+  // Delete Ranking Button
+  if (btnDeleteRanking) {
+    btnDeleteRanking.addEventListener("click", async () => {
+      if (!activeRankingId) return;
+      const confirmDelete = confirm("Tem certeza que deseja excluir este ranking?");
+      if (!confirmDelete) return;
+
+      try {
+        updateStatus("Excluindo ranking...", "checking");
+        const res = await fetch(`${API_URL}/api/ranking/${activeRankingId}`, {
+          method: "DELETE"
+        });
+        if (res.ok) {
+          showStatusMessage("Ranking excluído com sucesso!", "success");
+          activeRankingId = "";
+          activeRankingData = null;
+          chrome.storage.local.remove(["lastRankingId"]);
+          await loadRankings();
+        } else {
+          showStatusMessage("Erro ao excluir ranking", "error");
+        }
+      } catch (err) {
+        console.error("Erro ao excluir ranking:", err);
+        showStatusMessage("Erro ao excluir ranking", "error");
+      }
+    });
+  }
+
   // Create Test Preset Button
   btnCreateTestPreset.addEventListener("click", createTestPresetRanking);
 
@@ -316,8 +369,8 @@ function setupEventListeners() {
   btnSubmitCreateRanking.addEventListener("click", createNewRanking);
 
   // Sync double range slider values
-  trimInicioSlider.addEventListener("input", updateDoubleSlider);
-  trimFimSlider.addEventListener("input", updateDoubleSlider);
+  trimInicioSlider.addEventListener("input", () => updateDoubleSlider(true));
+  trimFimSlider.addEventListener("input", () => updateDoubleSlider(false));
 
   // Sync Height Slider Display & Real-time Live Preview positioning
   videoYInput.addEventListener("input", (e) => {
@@ -442,15 +495,27 @@ function setupEventListeners() {
 }
 
 // ── Double Slider Logic ──
-function updateDoubleSlider() {
-  let valStart = parseFloat(trimInicioSlider.value);
-  let valEnd = parseFloat(trimFimSlider.value);
+function updateDoubleSlider(adjustingStart = true) {
+  let valStart = parseFloat(trimInicioSlider.value) || 0;
+  let valEnd = parseFloat(trimFimSlider.value) || 0;
   const maxVal = parseFloat(trimInicioSlider.max) || 180;
 
   if (valStart >= valEnd) {
-    // Keep a minimum 0.5s difference
-    trimInicioSlider.value = valEnd - 0.5;
-    valStart = valEnd - 0.5;
+    if (adjustingStart) {
+      valEnd = Math.min(valStart + 10.0, maxVal);
+      if (valEnd <= valStart) {
+        valStart = Math.max(0, valEnd - 0.5);
+      }
+      trimFimSlider.value = valEnd;
+      trimInicioSlider.value = valStart;
+    } else {
+      valStart = Math.max(0, valEnd - 10.0);
+      if (valStart >= valEnd) {
+        valEnd = Math.min(valStart + 0.5, maxVal);
+      }
+      trimInicioSlider.value = valStart;
+      trimFimSlider.value = valEnd;
+    }
   }
 
   const leftPct = (valStart / maxVal) * 100;
@@ -459,7 +524,7 @@ function updateDoubleSlider() {
   trimTrackFill.style.left = `${leftPct}%`;
   trimTrackFill.style.width = `${widthPct}%`;
 
-  trimValDisplay.textContent = `${valStart.toFixed(1)}s — ${valEnd.toFixed(1)}s`;
+  trimValDisplay.textContent = `${valStart.toFixed(1)}s - ${valEnd.toFixed(1)}s`;
 }
 
 // ── API Operations ──
@@ -579,6 +644,9 @@ async function loadRankingDetails(rid) {
     globalTitleInput.value = ranking.titulo_geral || "";
     globalOverlaySelect.value = ranking.overlay || "";
     globalColorSelect.value = ranking.cor_titulo || "Branco";
+    if (rankingColorSchemeSelect) {
+      rankingColorSchemeSelect.value = ranking.esquema_cores || "roxo_verde";
+    }
     globalTitleYInput.value = ranking.title_y || 220;
     globalTitleYVal.textContent = (ranking.title_y || 220) + "px";
 
@@ -773,6 +841,13 @@ async function createNewRanking() {
     if (!res.ok) throw new Error("Erro HTTP");
     const newRanking = await res.json();
     
+    // Patch default Y height to 538 specifically for shorts extension
+    await fetch(`${API_URL}/api/ranking/${newRanking.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itens_y: 538 })
+    });
+    
     newRankingTitle.value = "";
     createRankingPanel.classList.add("collapsed");
     btnToggleCreateRanking.textContent = "+ Novo";
@@ -795,7 +870,7 @@ async function createTestPresetRanking() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        titulo_geral: "Ranking de Teste 🏆",
+        titulo_geral: "RANKING BESTS PLAYS VALORANT",
         quantidade: 3,
         ordem: "decrescente"
       })
@@ -805,36 +880,50 @@ async function createTestPresetRanking() {
     const newRanking = await res.json();
     const rankingId = newRanking.id;
 
-    const testVideoUrl = "https://www.youtube.com/watch?v=h4NzUoUVi38";
+    // PATCH extra options to set overlay 3, title color Rosa, esquema_cores roxo_verde, title_y 240, and default itens_y 538
+    const patchRes = await fetch(`${API_URL}/api/ranking/${rankingId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        overlay: "3",
+        cor_titulo: "Rosa",
+        esquema_cores: "roxo_verde",
+        title_y: 240,
+        itens_y: 538
+      })
+    });
+    if (!patchRes.ok) throw new Error("Erro ao aplicar configurações no ranking");
+
+    const testVideoUrl = "https://www.youtube.com/watch?v=MwhIoaBa2Lg";
     const presetItems = [
       {
         posicao: 3,
-        titulo_item: "Item de Teste 3",
-        trim_inicio_s: 0.0,
-        trim_fim_s: 5.0,
+        titulo_item: "HS MARSTERCLASS",
+        trim_inicio_s: 68.1,
+        trim_fim_s: 81.7,
         video_y: 150,
-        narracao_texto: "Este é o item número três do nosso teste",
+        narracao_texto: "",
         transicao_tipo: "fade_preto",
-        transicao_sfx: "whoosh"
+        transicao_sfx: "click"
       },
       {
         posicao: 2,
-        titulo_item: "Item de Teste 2",
-        trim_inicio_s: 5.0,
-        trim_fim_s: 10.0,
+        titulo_item: "PROPLAYER LV",
+        trim_inicio_s: 52.1,
+        trim_fim_s: 65.3,
         video_y: 150,
-        narracao_texto: "Seguindo em frente, aqui está o item número dois",
-        transicao_tipo: "slide_up",
-        transicao_sfx: "camera"
+        narracao_texto: "",
+        transicao_tipo: "fade_preto",
+        transicao_sfx: "click"
       },
       {
         posicao: 1,
-        titulo_item: "Item de Teste 1",
-        trim_inicio_s: 10.0,
-        trim_fim_s: 15.0,
+        titulo_item: "HACKER LV",
+        trim_inicio_s: 205.6,
+        trim_fim_s: 230.2,
         video_y: 150,
-        narracao_texto: "E por fim, o grande vencedor do nosso teste",
-        transicao_tipo: "slide_left",
+        narracao_texto: "",
+        transicao_tipo: "fade_preto",
         transicao_sfx: "click"
       }
     ];
@@ -852,14 +941,7 @@ async function createTestPresetRanking() {
           narracao_texto: item.narracao_texto,
           transicao_tipo: item.transicao_tipo,
           transicao_sfx: item.transicao_sfx,
-          tarja: {
-            ativo: true,
-            texto: item.titulo_item,
-            x: 0.35,
-            y: 0.45,
-            w: 0.30,
-            h: 0.07
-          }
+          tarja: null
         })
       });
       if (!itemRes.ok) throw new Error(`Erro ao salvar item ${item.posicao}`);
@@ -1243,6 +1325,16 @@ function updateLivePreviewItems() {
   const itensY = activeRankingData.itens_y || 538;
   livePreviewItemsList.style.top = `${(itensY / 19.2)}%`;
 
+  const esquema = activeRankingData.esquema_cores || "roxo_verde";
+  const colorMap = {
+    roxo_verde: { past: '#8B5CF6', current: '#00FF66' },
+    azul_amarelo: { past: '#3B82F6', current: '#FFD400' },
+    cinza_ciano: { past: '#A1A1AA', current: '#00BDFF' },
+    rosa_roxo: { past: '#FF2D95', current: '#8B5CF6' },
+    amarelo_verde: { past: '#FFD400', current: '#00FF66' }
+  };
+  const colors = colorMap[esquema] || colorMap.roxo_verde;
+
   // Sort and render items
   const isDesc = activeRankingData.ordem !== "crescente";
   const sorted = [...activeRankingData.itens].sort((a, b) => isDesc ? b.posicao - a.posicao : a.posicao - b.posicao);
@@ -1257,9 +1349,12 @@ function updateLivePreviewItems() {
 
     const itemDiv = document.createElement("div");
     itemDiv.className = "live-preview-item";
+    
+    const textColor = isActive ? colors.current : colors.past;
+    
     itemDiv.innerHTML = `
       <span class="live-preview-item-num">${it.posicao}º</span>
-      <span class="live-preview-item-text ${isActive ? "active" : ""}">${displayTitle}</span>
+      <span class="live-preview-item-text" style="color: ${textColor} !important;">${displayTitle}</span>
     `;
     livePreviewItemsList.appendChild(itemDiv);
   });

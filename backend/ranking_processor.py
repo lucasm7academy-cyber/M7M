@@ -159,7 +159,7 @@ def _render_side_list_png(ranking: dict, current_posicao: int) -> str | None:
         itens_visuais = sorted(ranking.get("itens", []), key=lambda x: x.get("posicao", 0))
         
         # Medidas equivalentes ao frontend:
-        y_offset = 660
+        y_offset = int(ranking.get("itens_y", 660))
         x_offset = 65
         line_height = 86
         
