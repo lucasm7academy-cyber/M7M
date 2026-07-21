@@ -69,7 +69,7 @@
               <div class="item-form-grid">
                 <div class="field">
                   <label for="newRankingTitle" class="field-label">Título Geral</label>
-                  <input type="text" id="newRankingTitle" placeholder="Ex: Top 5 Gols" />
+                  <textarea id="newRankingTitle" rows="2" placeholder="Ex: Top 5 Gols&#10;(Aperte Enter para segunda linha)"></textarea>
                 </div>
                 <div class="field-row">
                   <div class="field">
@@ -125,7 +125,7 @@
             <div class="item-form-grid" style="margin-top: 10px;">
               <div class="field">
                 <label for="globalTitleInput" class="field-label">Título Geral do Ranking</label>
-                <input type="text" id="globalTitleInput" placeholder="Ex: Melhores Gols do Ano" spellcheck="true" />
+                <textarea id="globalTitleInput" rows="2" placeholder="Ex: Melhores Gols do Ano&#10;(Aperte Enter para segunda linha)" spellcheck="true"></textarea>
               </div>
 
               <div class="field-row">
@@ -150,6 +150,14 @@
               </div>
 
               <div class="field">
+                <label for="rankingLayoutModoSelect" class="field-label">Modo do Layout (Vídeo)</label>
+                <select id="rankingLayoutModoSelect" class="select-field">
+                  <option value="horizontal">Horizontal (Live - Fundo Desfocado)</option>
+                  <option value="shorts">Vertical (Shorts - Preencher Tela)</option>
+                </select>
+              </div>
+
+              <div class="field">
                 <label for="rankingColorSchemeSelect" class="field-label">Esquema de Cores dos Itens</label>
                 <select id="rankingColorSchemeSelect" class="select-field">
                   <option value="roxo_verde">Roxo + Verde (Padrão)</option>
@@ -157,6 +165,7 @@
                   <option value="cinza_ciano">Cinza + Ciano</option>
                   <option value="rosa_roxo">Rosa + Roxo</option>
                   <option value="amarelo_verde">Amarelo + Verde</option>
+                  <option value="colorido">Colorido</option>
                 </select>
               </div>
 
@@ -174,6 +183,22 @@
                   <span id="globalItensYVal" style="font-family: monospace; font-weight: 700; color: var(--cyan); font-size: 12px;">660px</span>
                 </div>
                 <input type="range" id="globalItensYInput" min="200" max="1500" value="660" step="5" class="slider" />
+              </div>
+
+              <!-- Trilha Sonora Viral -->
+              <div class="field" style="margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px;">
+                <label for="globalTrilhaFundoSelect" class="field-label">🎵 Trilha Sonora de Fundo</label>
+                <select id="globalTrilhaFundoSelect" class="select-field">
+                  <option value="none">🔇 Sem música de fundo</option>
+                </select>
+              </div>
+
+              <div id="globalTrilhaModoContainer" class="field" style="display: none;">
+                <label for="globalTrilhaModoSelect" class="field-label">Modo da Trilha</label>
+                <select id="globalTrilhaModoSelect" class="select-field">
+                  <option value="50_50">25% Música / 100% Original</option>
+                  <option value="100_musica">100% Música (Sem Áudio Original)</option>
+                </select>
               </div>
 
               <!-- Global Transitions Configurations -->

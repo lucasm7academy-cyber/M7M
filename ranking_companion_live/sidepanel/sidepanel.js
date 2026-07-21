@@ -41,12 +41,16 @@ const globalOverlaySelect = document.getElementById("globalOverlaySelect");
 const globalColorSelect = document.getElementById("globalColorSelect");
 const btnDeleteRanking = document.getElementById("btnDeleteRanking");
 const rankingColorSchemeSelect = document.getElementById("rankingColorSchemeSelect");
+const rankingLayoutModoSelect = document.getElementById("rankingLayoutModoSelect");
 const globalTitleYInput = document.getElementById("globalTitleYInput");
 const globalTitleYVal = document.getElementById("globalTitleYVal");
 const globalItensYInput = document.getElementById("globalItensYInput");
 const globalItensYVal = document.getElementById("globalItensYVal");
 const globalTransicaoTipoSelect = document.getElementById("globalTransicaoTipoSelect");
 const globalTransicaoSfxSelect = document.getElementById("globalTransicaoSfxSelect");
+const globalTrilhaFundoSelect = document.getElementById("globalTrilhaFundoSelect");
+const globalTrilhaModoSelect = document.getElementById("globalTrilhaModoSelect");
+const globalTrilhaModoContainer = document.getElementById("globalTrilhaModoContainer");
 
 const activeMediaSection = document.getElementById("activeMediaSection");
 const noVideoMsg = document.getElementById("noVideoMsg");
@@ -133,6 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
         loadOverlays();
         loadRankings();
         loadDriveFolders();
+        loadMusic();
       }
     });
   });
@@ -168,6 +173,7 @@ function setupEventListeners() {
             loadOverlays();
             loadRankings();
             loadDriveFolders();
+            loadMusic();
           }
         });
       });
@@ -312,6 +318,74 @@ function setupEventListeners() {
     } catch (err) {
       console.error("Erro ao salvar esquema de cores:", err);
       showStatusMessage("Erro ao salvar esquema de cores", "error");
+    }
+  });
+
+  // Change layout mode for the selected ranking
+  rankingLayoutModoSelect.addEventListener("change", async (e) => {
+    if (!activeRankingId) return;
+    const layoutVal = e.target.value;
+    try {
+      const res = await fetch(`${API_URL}/api/ranking/${activeRankingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ layout_modo: layoutVal })
+      });
+      if (res.ok) {
+        activeRankingData.layout_modo = layoutVal;
+        showStatusMessage("Modo de layout atualizado!", "success");
+        // Reload details to trigger preview refresh
+        await loadRankingDetails(activeRankingId);
+      }
+    } catch (err) {
+      console.error("Erro ao salvar modo de layout:", err);
+      showStatusMessage("Erro ao salvar layout", "error");
+    }
+  });
+
+  // Change global background music select
+  globalTrilhaFundoSelect.addEventListener("change", async (e) => {
+    if (!activeRankingId) return;
+    const musicVal = e.target.value === "none" ? null : e.target.value;
+    try {
+      const res = await fetch(`${API_URL}/api/ranking/${activeRankingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trilha_fundo: musicVal })
+      });
+      if (res.ok) {
+        activeRankingData.trilha_fundo = musicVal;
+        showStatusMessage("Música de fundo atualizada!", "success");
+        if (musicVal) {
+          globalTrilhaModoContainer.style.display = "block";
+          globalTrilhaModoSelect.value = activeRankingData.trilha_modo || "50_50";
+        } else {
+          globalTrilhaModoContainer.style.display = "none";
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao salvar música de fundo:", err);
+      showStatusMessage("Erro ao salvar música de fundo", "error");
+    }
+  });
+
+  // Change global background music mode select
+  globalTrilhaModoSelect.addEventListener("change", async (e) => {
+    if (!activeRankingId) return;
+    const modeVal = e.target.value;
+    try {
+      const res = await fetch(`${API_URL}/api/ranking/${activeRankingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ trilha_modo: modeVal })
+      });
+      if (res.ok) {
+        activeRankingData.trilha_modo = modeVal;
+        showStatusMessage("Modo da trilha sonora atualizado!", "success");
+      }
+    } catch (err) {
+      console.error("Erro ao salvar modo da trilha sonora:", err);
+      showStatusMessage("Erro ao salvar modo da trilha", "error");
     }
   });
 
@@ -719,6 +793,30 @@ async function loadOverlays() {
   }
 }
 
+async function loadMusic() {
+  try {
+    const res = await fetch(`${API_URL}/api/music`);
+    if (res.ok) {
+      const musicList = await res.json();
+      globalTrilhaFundoSelect.innerHTML = '<option value="none">🔇 Sem música de fundo</option>';
+      musicList.forEach((m) => {
+        globalTrilhaFundoSelect.innerHTML += `<option value="${m.file}">🎵 ${m.label}</option>`;
+      });
+      if (activeRankingData) {
+        globalTrilhaFundoSelect.value = activeRankingData.trilha_fundo || "none";
+        if (activeRankingData.trilha_fundo && activeRankingData.trilha_fundo !== "none") {
+          globalTrilhaModoContainer.style.display = "block";
+          globalTrilhaModoSelect.value = activeRankingData.trilha_modo || "50_50";
+        } else {
+          globalTrilhaModoContainer.style.display = "none";
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Erro ao carregar músicas:", e);
+  }
+}
+
 async function loadDriveFolders() {
   if (!driveFolderSelect) return;
   try {
@@ -786,7 +884,8 @@ async function loadRankingDetails(rid) {
     globalTitleInput.value = ranking.titulo_geral || "";
     globalOverlaySelect.value = ranking.overlay || "";
     globalColorSelect.value = ranking.cor_titulo || "Branco";
-    rankingColorSchemeSelect.value = ranking.esquema_cores || "roxo_verde";
+    rankingColorSchemeSelect.value = ranking.esquema_cores || "colorido";
+    rankingLayoutModoSelect.value = ranking.layout_modo || "horizontal";
     globalTitleYInput.value = ranking.title_y || 220;
     globalTitleYVal.textContent = (ranking.title_y || 220) + "px";
     if (globalItensYInput) {
@@ -795,6 +894,17 @@ async function loadRankingDetails(rid) {
     }
     globalTransicaoTipoSelect.value = ranking.transicao_tipo || "none";
     globalTransicaoSfxSelect.value = ranking.transicao_sfx || "none";
+    
+    // Sync music inputs
+    if (globalTrilhaFundoSelect) {
+      globalTrilhaFundoSelect.value = ranking.trilha_fundo || "none";
+      if (ranking.trilha_fundo && ranking.trilha_fundo !== "none") {
+        globalTrilhaModoContainer.style.display = "block";
+        globalTrilhaModoSelect.value = ranking.trilha_modo || "50_50";
+      } else {
+        globalTrilhaModoContainer.style.display = "none";
+      }
+    }
 
     renderRankingItems(ranking);
     updateLivePreviewOverlay();
@@ -829,9 +939,14 @@ function renderRankingItems(ranking) {
 
     let metaHtml = "";
     if (hasLink) {
+      const formatMMSS = (sec) => {
+        if (typeof sec !== "number" || isNaN(sec)) return "00:00";
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60);
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      };
       metaHtml = `
-        <span class="position-meta-item">⏱️ ${item.trim_inicio_s.toFixed(1)}s - ${item.trim_fim_s.toFixed(1)}s</span>
-        <span class="position-meta-item">↕️ ${item.video_y}px</span>
+        <span class="position-meta-item">⏱️ ${formatMMSS(item.trim_inicio_s)} - ${formatMMSS(item.trim_fim_s)}</span>
       `;
     } else {
       metaHtml = `<span class="position-meta-item">Nenhum vídeo atribuído</span>`;
@@ -856,6 +971,7 @@ function renderRankingItems(ranking) {
         </div>
         <div class="position-meta">${metaHtml}</div>
       </div>
+      ${hasLink ? `<button class="btn-substitute" data-pos="${item.posicao}">Substituir</button>` : ""}
     `;
 
     // Drag and Drop Event Listeners
@@ -928,18 +1044,35 @@ function renderRankingItems(ranking) {
     card.addEventListener("click", async () => {
       activePositionEditing = item.posicao;
       
-      if (currentTabVideoUrl) {
-        // If a tab video is grabbed, automatically assign/update it on click!
-        await autoAssignTabVideoToPosition(item.posicao, currentTabVideoUrl, currentTabVideoTitle);
-      } else {
-        // If no tab video is currently grabbed, just open/populate edit form with existing details
-        if (hasLink) {
-          populateFormWithItem(item);
+      if (!hasLink) {
+        if (currentTabVideoUrl) {
+          // If the card is empty, click to assign the current tab's video
+          await autoAssignTabVideoToPosition(item.posicao, currentTabVideoUrl, currentTabVideoTitle);
         } else {
           showStatusMessage("Nenhum vídeo detectado na aba ativa para atribuir!", "error");
         }
+      } else {
+        // If the card already has a video, click to ONLY open configurations for editing
+        populateFormWithItem(item);
       }
     });
+
+    // Add event listener to the substitute button
+    if (hasLink) {
+      const btnSub = card.querySelector(".btn-substitute");
+      if (btnSub) {
+        btnSub.addEventListener("click", async (e) => {
+          e.stopPropagation(); // Prevent triggering the card's click event
+          
+          activePositionEditing = item.posicao;
+          if (currentTabVideoUrl) {
+            await autoAssignTabVideoToPosition(item.posicao, currentTabVideoUrl, currentTabVideoTitle);
+          } else {
+            showStatusMessage("Nenhum vídeo detectado na aba ativa para atribuir!", "error");
+          }
+        });
+      }
+    }
 
     rankingItemsList.appendChild(card);
   });
@@ -1008,7 +1141,7 @@ async function createTestPresetRanking() {
       body: JSON.stringify({
         overlay: "3",
         cor_titulo: "Rosa",
-        esquema_cores: "roxo_verde",
+        esquema_cores: "colorido",
         title_y: 240
       })
     });
@@ -1369,7 +1502,13 @@ function triggerLivePreviewLoading(url, title, time = null) {
   frameUrl += `&v=${Date.now()}`;
   livePreviewFrame.src = frameUrl;
   livePreviewBlurBg.src = frameUrl;
-  livePreviewBlurBg.style.display = "block";
+  let layoutModo = activeRankingData ? activeRankingData.layout_modo || "horizontal" : "horizontal";
+  if (layoutModo === "horizontal" && url) {
+    if (url.includes("/shorts/") || url.includes("/reel/")) {
+      layoutModo = "shorts";
+    }
+  }
+  livePreviewBlurBg.style.display = layoutModo === "shorts" ? "none" : "block";
   
   updateLivePreviewOverlay();
   updateLivePreviewItems();
@@ -1395,27 +1534,54 @@ function updateLivePreviewItems() {
   // Title rendering
   const title = (activeRankingData.titulo_geral || "").trim();
   if (livePreviewTitle) {
-    livePreviewTitle.textContent = title || "Digite um título...";
     const titleY = activeRankingData.title_y || 220;
     livePreviewTitle.style.top = `${(titleY / 19.2)}%`;
-    
-    const corLabel = activeRankingData.cor_titulo || "Branco";
-    livePreviewTitle.style.color = CORES_HEX[corLabel] || "#FFFFFF";
     
     const fontLabel = activeRankingData.font || "Padrão";
     const fontFamily = fontLabel === "Manuscrita" ? "Caveat" : fontLabel === "Estilo 1" ? "Times New Roman" : fontLabel === "Estilo 2" ? "Arial" : "sans-serif";
     livePreviewTitle.style.fontFamily = fontFamily;
+
+    const corLabel = activeRankingData.cor_titulo || "Branco";
+    const targetColor = CORES_HEX[corLabel] || "#FFFFFF";
+
+    if (!title) {
+      livePreviewTitle.textContent = "Digite um título...";
+      livePreviewTitle.style.color = "#FFFFFF";
+    } else {
+      const lines = title.split("\n").map(l => l.trim()).filter(l => l);
+      if (lines.length > 1) {
+        livePreviewTitle.style.color = "";
+        livePreviewTitle.innerHTML = "";
+        
+        const span1 = document.createElement("span");
+        span1.textContent = lines[0];
+        span1.style.color = "#FFFFFF";
+        span1.style.display = "block";
+        
+        const span2 = document.createElement("span");
+        span2.textContent = lines.slice(1).join(" ");
+        span2.style.color = targetColor;
+        span2.style.display = "block";
+        
+        livePreviewTitle.appendChild(span1);
+        livePreviewTitle.appendChild(span2);
+      } else {
+        livePreviewTitle.textContent = title;
+        livePreviewTitle.style.color = "#FFFFFF"; // If only 1 line, always white
+      }
+    }
   }
 
   // Items positioning
   const itensY = activeRankingData.itens_y || 660;
   livePreviewItemsList.style.top = `${(itensY / 19.2)}%`;
 
-  // Sort and render items
-  const isDesc = activeRankingData.ordem !== "crescente";
-  const sorted = [...activeRankingData.itens].sort((a, b) => isDesc ? b.posicao - a.posicao : a.posicao - b.posicao);
+  // Sort and render items (always show 1 at the top, N at the bottom)
+  const sorted = [...activeRankingData.itens].sort((a, b) => a.posicao - b.posicao);
 
-  const esquema = activeRankingData.esquema_cores || "roxo_verde";
+  const COLORIDO_COLORS = ["#00FF66", "#FFD400", "#FF3333", "#FF2D95", "#8B5CF6", "#00BDFF", "#FF7F00", "#FF00FF", "#A3E635", "#14B8A6"];
+  const esquema = activeRankingData.esquema_cores || "colorido";
+  const isColorido = esquema === "colorido";
   const colorMap = {
     roxo_verde: { past: '#8B5CF6', current: '#00FF66' },
     azul_amarelo: { past: '#3B82F6', current: '#FFD400' },
@@ -1436,10 +1602,18 @@ function updateLivePreviewItems() {
     const itemDiv = document.createElement("div");
     itemDiv.className = "live-preview-item";
     
-    const textColor = isActive ? colors.current : colors.past;
+    let textColor = "#FFFFFF";
+    let numStyle = "";
+    if (isColorido) {
+      const numColor = COLORIDO_COLORS[(it.posicao - 1) % COLORIDO_COLORS.length];
+      numStyle = ` style="color: ${numColor} !important;"`;
+    } else {
+      const numColor = isActive ? colors.current : colors.past;
+      numStyle = ` style="color: ${numColor} !important;"`;
+    }
     
     itemDiv.innerHTML = `
-      <span class="live-preview-item-num">${it.posicao}º</span>
+      <span class="live-preview-item-num"${numStyle}>${it.posicao}.</span>
       <span class="live-preview-item-text" style="color: ${textColor} !important;">${displayTitle}</span>
     `;
     livePreviewItemsList.appendChild(itemDiv);
@@ -1454,17 +1628,40 @@ function updateLivePreviewPlacement() {
   const imgH = livePreviewFrame.naturalHeight;
 
   const _W = 1080, _H = 1920, _VSCALE = 0.937, _HSCALE = 1.65;
+  let layoutModo = activeRankingData ? activeRankingData.layout_modo || "horizontal" : "horizontal";
+
+  // Auto-detect Shorts mode from active item URL if layoutModo is horizontal
+  if (layoutModo === "horizontal") {
+    const activeItem = activeRankingData && activeRankingData.itens ? activeRankingData.itens.find(it => it.posicao === activePositionEditing) : null;
+    const url = activeItem ? activeItem.link : null;
+    if (url && (url.includes("/shorts/") || url.includes("/reel/"))) {
+      layoutModo = "shorts";
+    }
+  }
+
   const isHorizontal = imgW > imgH;
   let dispW, dispH;
-  
-  if (!isHorizontal) {
-    dispH = _VSCALE * _H;
-    dispW = dispH * (imgW / imgH);
+
+  if (layoutModo === "shorts") {
+    // Modo Shorts (Ranking Normal): Escala usando _VSCALE (0.937) para ambos para caber sem cortar e posiciona em fundo preto simples
+    if (!isHorizontal) {
+      dispH = _VSCALE * _H;
+      dispW = dispH * (imgW / imgH);
+    } else {
+      dispW = _VSCALE * _W;
+      dispH = dispW * (imgH / imgW);
+    }
   } else {
-    dispW = _HSCALE * _W;
-    dispH = dispW * (imgH / imgW);
+    // Modo Horizontal (Live): Horizontal usa _HSCALE (1.65), Vertical usa _VSCALE (0.937)
+    if (!isHorizontal) {
+      dispH = _VSCALE * _H;
+      dispW = dispH * (imgW / imgH);
+    } else {
+      dispW = _HSCALE * _W;
+      dispH = dispW * (imgH / imgW);
+    }
   }
-  
+
   const wPct = (dispW / _W) * 100;
   const hPct = (dispH / _H) * 100;
   const yOff = (videoY / _H) * 100;
@@ -1474,7 +1671,19 @@ function updateLivePreviewPlacement() {
   livePreviewFrame.style.top = `calc(50% + ${yOff}%)`;
   livePreviewFrame.style.width = `${wPct}%`;
   livePreviewFrame.style.height = `${hPct}%`;
+  livePreviewFrame.style.objectFit = 'fill'; // reset
+  livePreviewFrame.style.objectPosition = '50% 50%'; // reset
   livePreviewFrame.style.transform = 'translate(-50%, -50%)';
+  
+  if (livePreviewBlurBg) {
+    if (layoutModo === "shorts") {
+      livePreviewBlurBg.style.display = 'none';
+    } else {
+      if (livePreviewFrame.src && !livePreviewFrame.src.includes('undefined')) {
+        livePreviewBlurBg.style.display = 'block';
+      }
+    }
+  }
 }
 
 // ── Helper UI Status ──

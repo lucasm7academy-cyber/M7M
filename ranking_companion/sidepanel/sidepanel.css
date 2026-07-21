@@ -802,7 +802,7 @@ input.input-readonly {
   width: 80%;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 16px;
   z-index: 5;
   pointer-events: none;
 }
@@ -815,6 +815,9 @@ input.input-readonly {
 }
 .live-preview-item-num {
   color: #fff;
+  font-size: 1.2em;
+  font-weight: 900;
+  margin-right: 4px;
 }
 .live-preview-item-text {
   color: var(--brand-violet);
@@ -893,7 +896,7 @@ input.input-readonly {
     font-size: 13px !important;
   }
   .live-preview-items-list {
-    gap: 9px !important;
+    gap: 24px !important;
   }
 }
 

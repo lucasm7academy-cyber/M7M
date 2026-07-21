@@ -41,16 +41,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // 1. Update Title Overlay
     if (livePreviewTitle && activeRankingData) {
       const title = (activeRankingData.titulo_geral || "").trim();
-      livePreviewTitle.textContent = title || "Digite um título...";
       const titleY = activeRankingData.title_y || 220;
       livePreviewTitle.style.top = `${(titleY / 19.2)}%`;
-      
-      const corLabel = activeRankingData.cor_titulo || "Branco";
-      livePreviewTitle.style.color = CORES_HEX[corLabel] || "#FFFFFF";
       
       const fontLabel = activeRankingData.font || "Padrão";
       const fontFamily = fontLabel === "Manuscrita" ? "Caveat" : fontLabel === "Estilo 1" ? "Times New Roman" : fontLabel === "Estilo 2" ? "Arial" : "sans-serif";
       livePreviewTitle.style.fontFamily = fontFamily;
+
+      const corLabel = activeRankingData.cor_titulo || "Branco";
+      const targetColor = CORES_HEX[corLabel] || "#FFFFFF";
+
+      if (!title) {
+        livePreviewTitle.textContent = "Digite um título...";
+        livePreviewTitle.style.color = "#FFFFFF";
+      } else {
+        const lines = title.split("\n").map(l => l.trim()).filter(l => l);
+        if (lines.length > 1) {
+          livePreviewTitle.style.color = "";
+          livePreviewTitle.innerHTML = "";
+          
+          const span1 = document.createElement("span");
+          span1.textContent = lines[0];
+          span1.style.color = "#FFFFFF";
+          span1.style.display = "block";
+          
+          const span2 = document.createElement("span");
+          span2.textContent = lines.slice(1).join(" ");
+          span2.style.color = targetColor;
+          span2.style.display = "block";
+          
+          livePreviewTitle.appendChild(span1);
+          livePreviewTitle.appendChild(span2);
+        } else {
+          livePreviewTitle.textContent = title;
+          livePreviewTitle.style.color = "#FFFFFF"; // If only 1 line, always white
+        }
+      }
     }
 
     // 2. Update Overlay Mask
@@ -95,10 +121,11 @@ function updateItemsList(activePos, activeTitle) {
   const itensY = activeRankingData.itens_y || 660;
   livePreviewItemsList.style.top = `${(itensY / 19.2)}%`;
 
-  const isDesc = activeRankingData.ordem !== "crescente";
-  const sorted = [...activeRankingData.itens].sort((a, b) => isDesc ? b.posicao - a.posicao : a.posicao - b.posicao);
+  const sorted = [...activeRankingData.itens].sort((a, b) => a.posicao - b.posicao);
 
-  const esquema = activeRankingData.esquema_cores || "roxo_verde";
+  const COLORIDO_COLORS = ["#00FF66", "#FFD400", "#FF3333", "#FF2D95", "#8B5CF6", "#00BDFF", "#FF7F00", "#FF00FF", "#A3E635", "#14B8A6"];
+  const esquema = activeRankingData.esquema_cores || "colorido";
+  const isColorido = esquema === "colorido";
   const colorMap = {
     roxo_verde: { past: '#8B5CF6', current: '#00FF66' },
     azul_amarelo: { past: '#3B82F6', current: '#FFD400' },
@@ -119,10 +146,18 @@ function updateItemsList(activePos, activeTitle) {
     const itemDiv = document.createElement("div");
     itemDiv.className = "live-preview-item";
     
-    const textColor = isActive ? colors.current : colors.past;
+    let textColor = "#FFFFFF";
+    let numStyle = "";
+    if (isColorido) {
+      const numColor = COLORIDO_COLORS[(it.posicao - 1) % COLORIDO_COLORS.length];
+      numStyle = ` style="color: ${numColor} !important;"`;
+    } else {
+      const numColor = isActive ? colors.current : colors.past;
+      numStyle = ` style="color: ${numColor} !important;"`;
+    }
 
     itemDiv.innerHTML = `
-      <span class="live-preview-item-num">${it.posicao}º</span>
+      <span class="live-preview-item-num"${numStyle}>${it.posicao}.</span>
       <span class="live-preview-item-text" style="color: ${textColor} !important;">${displayTitle}</span>
     `;
     livePreviewItemsList.appendChild(itemDiv);

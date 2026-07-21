@@ -9,7 +9,7 @@
     "48": "icons/icon-48.png",
     "128": "icons/icon-128.png"
   },
-  "permissions": ["storage", "sidePanel", "scripting", "activeTab"],
+  "permissions": ["storage", "sidePanel", "scripting", "activeTab", "tabs"],
   "host_permissions": ["*://localhost/*", "https://*.youtube.com/*", "https://youtu.be/*"],
   "action": {
     "default_title": "Abrir MoviePy Companion",

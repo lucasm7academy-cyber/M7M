@@ -161,18 +161,41 @@ def _render_side_list_png(ranking: dict, current_posicao: int) -> str | None:
         # Medidas equivalentes ao frontend:
         y_offset = int(ranking.get("itens_y") or 660)
         x_offset = 65
-        line_height = 86
+        line_height = 155
         
         font_file = font_path(ranking.get("font", FONT_DEFAULT))
         try:
             font = ImageFont.truetype(font_file, 56)
+            font_num = ImageFont.truetype(font_file, 66)
         except Exception:
             font = ImageFont.load_default()
+            font_num = font
+            
+        try:
+            ascent_num, _ = font_num.getmetrics()
+            ascent_title, _ = font.getmetrics()
+            baseline_offset = ascent_num - ascent_title
+        except Exception:
+            baseline_offset = 10
             
         img = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
         
+        COLORIDO_PRESETS = [
+            "#00FF66",  # Verde (Item 1)
+            "#FFD400",  # Amarelo (Item 2)
+            "#FF3333",  # Vermelho (Item 3)
+            "#FF2D95",  # Rosa (Item 4)
+            "#8B5CF6",  # Roxo (Item 5)
+            "#00BDFF",  # Ciano (Item 6)
+            "#FF7F00",  # Laranja (Item 7)
+            "#FF00FF",  # Magenta (Item 8)
+            "#A3E635",  # Lima (Item 9)
+            "#14B8A6"   # Teal (Item 10)
+        ]
+        
         esquema = ranking.get("esquema_cores", "roxo_verde")
+        is_colorido = (esquema == "colorido")
         color_map = {
             "roxo_verde": ("#8B5CF6", "#00FF66"),
             "azul_amarelo": ("#3B82F6", "#FFD400"),
@@ -198,23 +221,30 @@ def _render_side_list_png(ranking: dict, current_posicao: int) -> str | None:
             else:
                 titulo = it.get("titulo_item") or f"Item {pos}"
                 
-            num_text = f"{pos}º"
+            num_text = f"{pos}."
             
-            # Destaque visual apenas no título: cor atual ou cor passada conforme o esquema
+            # Destaque visual
             is_current = (pos == current_posicao)
-            title_color = current_color if is_current else past_color
             
-            # 1. Desenha o número (primeiro contorno grosso preto, depois o interior branco)
-            draw.text((x_offset, y_offset), num_text, font=font, fill="black", 
+            title_color = "#FFFFFF"
+            if is_colorido:
+                # O número tem cor correspondente à sua posição, e o título é branco
+                num_fill = COLORIDO_PRESETS[(pos - 1) % len(COLORIDO_PRESETS)]
+            else:
+                # O número pega a cor do esquema (atual ou passada)
+                num_fill = current_color if is_current else past_color
+            
+            # 1. Desenha o número (primeiro contorno grosso preto, depois o interior do número)
+            draw.text((x_offset, y_offset), num_text, font=font_num, fill="black", 
                       stroke_width=5, stroke_fill="black")
-            draw.text((x_offset, y_offset), num_text, font=font, fill="white")
+            draw.text((x_offset, y_offset), num_text, font=font_num, fill=num_fill)
             
             # 2. Desenha o título do lado (primeiro contorno grosso preto, depois a cor do preenchimento)
             if titulo:
-                num_width = draw.textlength(num_text + " ", font=font)
-                draw.text((x_offset + num_width, y_offset), titulo, font=font, fill="black", 
+                num_width = draw.textlength(num_text + " ", font=font_num)
+                draw.text((x_offset + num_width, y_offset + baseline_offset), titulo, font=font, fill="black", 
                           stroke_width=5, stroke_fill="black")
-                draw.text((x_offset + num_width, y_offset), titulo, font=font, fill=title_color)
+                draw.text((x_offset + num_width, y_offset + baseline_offset), titulo, font=font, fill=title_color)
             
             y_offset += line_height
             
@@ -309,23 +339,44 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
     else:
         overlay_path_local = OVERLAYS.get(ranking.get("overlay", "1")) if ranking.get("overlay") else None
     video_y = int(item.get("video_y", VIDEO_Y_DEFAULT))
-    scale_w = int(WIDTH * VIDEO_SCALE_RATIO_HORIZONTAL)
-    scale_h = int(HEIGHT * VIDEO_SCALE_RATIO_VERTICAL)
+    
+    layout_modo = ranking.get("layout_modo", "horizontal")
+    # Autodetect if link is YouTube Shorts or Instagram Reel to use 'shorts' mode automatically
+    if "/shorts/" in link.lower() or "/reel/" in link.lower():
+        layout_modo = "shorts"
+
+    # Se for modo shorts, usamos o scale de 0.937 para ambos (horizontal e vertical) para não cortar
+    if layout_modo == "shorts":
+        scale_w = int(WIDTH * VIDEO_SCALE_RATIO_VERTICAL) # 1012
+        scale_h = int(HEIGHT * VIDEO_SCALE_RATIO_VERTICAL) # 1799
+    else:
+        scale_w = int(WIDTH * VIDEO_SCALE_RATIO_HORIZONTAL) # 1782
+        scale_h = int(HEIGHT * VIDEO_SCALE_RATIO_VERTICAL) # 1799
+        
     pad_y = (HEIGHT - scale_h) // 2 + video_y
 
-    print(f"   ├─ [Fase 2/4 - Composição] Ajustando escala e desfoque de fundo (9:16)...")
+    print(f"   ├─ [Fase 2/4 - Composição] Ajustando escala no modo {layout_modo} (9:16)...")
     filtros: list[str] = []
     inputs: list[str] = ["ffmpeg", "-y", "-loglevel", "error", "-i", raw]
     i = 1
 
-    filtros.append(
-        f"[0:v]split=2[v_bg][v_main];"
-        f"[v_bg]scale='if(gt(iw,ih),1.45*{scale_w},-2)':'if(gt(iw,ih),-2,1.35*{scale_h})',boxblur=12:3[bg_blurred];"
-        f"color=c=black:s={WIDTH}x{HEIGHT}:r={RANKING_FPS}[bg_black];"
-        f"[bg_black][bg_blurred]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[bg_canvas];"
-        f"[v_main]scale='if(gt(iw,ih),{scale_w},-2)':'if(gt(iw,ih),-2,{scale_h})':flags=lanczos[vid];"
-        f"[bg_canvas][vid]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[cur]"
-    )
+    if layout_modo == "shorts":
+        # Modo Shorts: Escala o vídeo (sem cortar/zoom) e posiciona no fundo preto simples, permitindo ajuste de video_y
+        filtros.append(
+            f"color=c=black:s={WIDTH}x{HEIGHT}:r={RANKING_FPS}[bg_black];"
+            f"[0:v]scale='if(gt(iw,ih),{scale_w},-2)':'if(gt(iw,ih),-2,{scale_h})':flags=lanczos[vid];"
+            f"[bg_black][vid]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[cur]"
+        )
+    else:
+        # Modo Horizontal (Live): Enquadra com fundo desfocado
+        filtros.append(
+            f"[0:v]split=2[v_bg][v_main];"
+            f"[v_bg]scale='if(gt(iw,ih),1.45*{scale_w},-2)':'if(gt(iw,ih),-2,1.35*{scale_h})',boxblur=12:3[bg_blurred];"
+            f"color=c=black:s={WIDTH}x{HEIGHT}:r={RANKING_FPS}[bg_black];"
+            f"[bg_black][bg_blurred]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[bg_canvas];"
+            f"[v_main]scale='if(gt(iw,ih),{scale_w},-2)':'if(gt(iw,ih),-2,{scale_h})':flags=lanczos[vid];"
+            f"[bg_canvas][vid]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[cur]"
+        )
     cur = "cur"
 
     # Filtro de vídeo
@@ -370,7 +421,7 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
 
     # Áudio original do item (muta se trilha_modo for 100_musica)
     trilha_modo = ranking.get("trilha_modo", "50_50")
-    vol_base = 0.0 if trilha_modo == "100_musica" else 1.0
+    vol_base = 0.0 if trilha_modo == "100_musica" else 2.0
 
     # Narração do item
     narracao_wav = None
@@ -429,7 +480,7 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
             a_map = f"{silent_idx}:a"
     elif extra_audios:
         if dur_nar_item > 0:
-            filtros.append(f"[0:a]volume='if(between(t,0,{dur_nar_item+0.25}),0.2,1)':eval=frame[base_a]")
+            filtros.append(f"[0:a]volume='if(between(t,0,{dur_nar_item+0.25}),0.2,{vol_base})':eval=frame[base_a]")
         else:
             filtros.append(f"[0:a]volume={vol_base}[base_a]")
         mix_inputs = ["base_a"] + extra_audios
@@ -1128,6 +1179,26 @@ def montar_ranking(ranking: dict, emit) -> str | None:
             os.replace(norm, final)
     except Exception as e:
         print(f"[ranking] normalização final falhou: {e}")
+
+    # Renomear/copiar o arquivo final usando o título geral do ranking limpo
+    titulo_geral = ranking.get("titulo_geral") or "ranking"
+    import re
+    clean_title = re.sub(r'[\\/*?:\x22<>|]', '', titulo_geral).strip()
+    clean_title = " ".join(clean_title.split())
+    if not clean_title:
+        clean_title = f"ranking_{ranking.get('id')}"
+        
+    final_rename = os.path.join(OUTPUT_DIR, f"{clean_title}.mp4")
+    try:
+        if os.path.exists(final_rename):
+            try: os.unlink(final_rename)
+            except OSError: pass
+        shutil.copy2(final, final_rename)
+        try: os.unlink(final)
+        except OSError: pass
+        final = final_rename
+    except Exception as e:
+        print(f"[ranking] falha ao renomear arquivo final para o título do ranking: {e}")
 
     print("\n" + "="*80)
     print(f"[PROCESSADOR] 🎉 RANKING CONCLUÍDO COM SUCESSO!")

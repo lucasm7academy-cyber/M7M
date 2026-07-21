@@ -305,11 +305,12 @@ export default function ConfigPanel({
       <div className="space-y-1">
         <label className="text-muted text-[11px]">Título</label>
         <div className="flex gap-1.5">
-          <input
-            className="flex-1 min-w-0 bg-card2 border border-border rounded-md px-2 py-1.5 text-xs text-white outline-none focus:border-accent transition-colors"
+          <textarea
+            className="flex-1 min-w-0 bg-card2 border border-border rounded-md px-2 py-1 text-xs text-white outline-none focus:border-accent transition-colors"
             value={titleDraft}
             onChange={e => handleTitleChange(e.target.value)}
             onBlur={flushTitle}
+            rows={2}
           />
           <button
             onClick={onRandomTitle}

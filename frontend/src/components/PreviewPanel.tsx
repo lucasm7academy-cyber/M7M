@@ -243,17 +243,52 @@ export default function PreviewPanel({ video, overlay, onChange }: Props) {
             width: `${TITLE_WIDTH_PCT}%`,
           }}
         >
-          <p
-            className={`font-bold leading-tight line-clamp-3 ${hasTitle ? '' : 'italic opacity-50'}`}
-            style={{
-              color: hasTitle ? corHex : '#FFFFFF',
-              fontFamily,
-              fontSize: `${TITLE_FONT_CQW}cqw`,
-              textShadow: tituloShadow,
-            }}
-          >
-            {hasTitle ? title : 'Digite um título…'}
-          </p>
+          {(() => {
+            if (!hasTitle) {
+              return (
+                <p
+                  className="font-bold leading-tight line-clamp-3 italic opacity-50"
+                  style={{
+                    color: '#FFFFFF',
+                    fontFamily,
+                    fontSize: `${TITLE_FONT_CQW}cqw`,
+                    textShadow: tituloShadow,
+                  }}
+                >
+                  Digite um título…
+                </p>
+              )
+            }
+            const lines = title.split('\n').map(l => l.trim()).filter(l => l)
+            if (lines.length > 1) {
+              return (
+                <div
+                  className="font-bold leading-tight line-clamp-3"
+                  style={{
+                    fontFamily,
+                    fontSize: `${TITLE_FONT_CQW}cqw`,
+                    textShadow: tituloShadow,
+                  }}
+                >
+                  <span style={{ color: '#FFFFFF', display: 'block' }}>{lines[0]}</span>
+                  <span style={{ color: corHex, display: 'block' }}>{lines.slice(1).join(' ')}</span>
+                </div>
+              )
+            }
+            return (
+              <p
+                className="font-bold leading-tight line-clamp-3"
+                style={{
+                  color: '#FFFFFF', // Single line is always white
+                  fontFamily,
+                  fontSize: `${TITLE_FONT_CQW}cqw`,
+                  textShadow: tituloShadow,
+                }}
+              >
+                {title}
+              </p>
+            )
+          })()}
         </div>
 
         {/* Camada 4: legenda — amostra do estilo selecionado (área estreita) */}

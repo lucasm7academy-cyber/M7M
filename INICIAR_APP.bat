@@ -8,7 +8,7 @@ echo ============================================
 echo.
 
 REM Backend de video (porta 8090)
-start "Backend Video (8090)" cmd /k "cd /d C:\Users\78787\Documents\moviepy\backend && python main.py"
+start "Backend Video (8090)" cmd /k "cd /d C:\Users\78787\Documents\moviepy\backend && venv\Scripts\python.exe main.py"
 
 REM Servidor de voz XTTS (porta 8095)
 start "Voz XTTS (8095)" cmd /k "cd /d C:\Users\78787\Documents\voz_ai && venv\Scripts\python.exe voice_server.py"

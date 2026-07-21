@@ -1024,7 +1024,8 @@ def criar_ranking(req: CreateRankingRequest):
         "cor_titulo": "Branco",
         "titulo_borda": True,
         "itens_y": 660,
-        "esquema_cores": "roxo_verde",
+        "esquema_cores": "colorido",
+        "layout_modo": "horizontal",
     }
     lista_rankings.append(rk)
     return rk
@@ -1050,7 +1051,7 @@ def editar_ranking(rid: str, req: dict):
         raise HTTPException(404, "Ranking não encontrado")
     campos = ["titulo_geral", "ordem", "quantidade", "overlay", "narrar_titulo_geral", "legendar_titulo_geral",
               "narrar_titulos_itens", "transicao_tipo", "transicao_sfx", "trilha_fundo", "trilha_modo",
-              "hook", "outro", "legenda", "status", "title_y", "font", "cor_titulo", "titulo_borda", "itens_y", "esquema_cores"]
+              "hook", "outro", "legenda", "status", "title_y", "font", "cor_titulo", "titulo_borda", "itens_y", "esquema_cores", "layout_modo"]
     for c in campos:
         if c in req and req[c] is not None:
             rk[c] = req[c]

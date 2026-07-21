@@ -904,24 +904,74 @@ def gerar_titulo_clip(texto: str, duracao: float,
     # Contorno: branco se o texto for escuro (preto), senão preto.
     stroke = "white" if cor_label == "Preto" else "black"
     sw     = 6 if borda else 0
-    return (
-        TextClip(
-            text=texto,
+    
+    # Split the title by manual newlines
+    lines = [l.strip() for l in texto.split("\n") if l.strip()]
+    
+    if len(lines) <= 1:
+        # Only one line: always render in white!
+        return (
+            TextClip(
+                text=texto,
+                font=font_path(font_label),
+                font_size=font_size,
+                color="#FFFFFF",
+                stroke_color=(stroke if borda else None),
+                stroke_width=sw,
+                size=(int(WIDTH * TITLE_WIDTH_RATIO), None),
+                margin=(10, 4, 10, 36),
+                method="caption",
+                text_align="center",
+            )
+            .with_duration(duracao)
+            .with_position(("center", int(title_y)))
+        )
+    else:
+        # Multiple lines: line 1 is white, line 2 is the selected color
+        clip_line1 = TextClip(
+            text=lines[0],
+            font=font_path(font_label),
+            font_size=font_size,
+            color="#FFFFFF",
+            stroke_color=(stroke if borda else None),
+            stroke_width=sw,
+            size=(int(WIDTH * TITLE_WIDTH_RATIO), None),
+            margin=(10, 4, 10, 10),
+            method="caption",
+            text_align="center",
+        ).with_duration(duracao)
+        
+        clip_line2 = TextClip(
+            text=" ".join(lines[1:]),
             font=font_path(font_label),
             font_size=font_size,
             color=cor,
             stroke_color=(stroke if borda else None),
             stroke_width=sw,
             size=(int(WIDTH * TITLE_WIDTH_RATIO), None),
-            # margem (esq, topo, dir, baixo): espaço extra embaixo evita
-            # cortar os rabinhos de fontes manuscritas (Caveat) + a borda.
-            margin=(10, 4, 10, 36),
+            margin=(10, 4, 10, 26),
             method="caption",
             text_align="center",
+        ).with_duration(duracao)
+        
+        # Position them stacked vertically
+        h1 = clip_line1.size[1]
+        h2 = clip_line2.size[1]
+        spacing = 10
+        total_h = h1 + h2 + spacing
+        
+        clip_line1 = clip_line1.with_position(("center", 0))
+        clip_line2 = clip_line2.with_position(("center", h1 + spacing))
+        
+        return (
+            CompositeVideoClip(
+                [clip_line1, clip_line2],
+                size=(int(WIDTH * TITLE_WIDTH_RATIO), total_h),
+                bg_color=None
+            )
+            .with_duration(duracao)
+            .with_position(("center", int(title_y)))
         )
-        .with_duration(duracao)
-        .with_position(("center", int(title_y)))
-    )
 
 
 def obter_duracao(url: str) -> float | None:
@@ -1495,7 +1545,7 @@ def _adicionar_trilha_fundo(video_path: str, musica_fundo: str, modo: str) -> bo
             print(f"[trilha] música não encontrada: {musica_path}")
             return False
 
-    vol_musica = 0.85 if modo == "100_musica" else 0.30
+    vol_musica = 1.0 if modo == "100_musica" else 0.25
     out_path = video_path + ".trilha.mp4"
     
     dur = _get_video_duration(video_path)
@@ -1682,7 +1732,14 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
                 print(f"[DEBUG] Crop failed: {err_cut}")
 
         os.makedirs(OUTPUT_DIR, exist_ok=True)
-        output_path = os.path.join(OUTPUT_DIR, f"{vid_id}.mp4")
+        # Nomear o arquivo com o título do vídeo de forma limpa/segura
+        title_text = (item.get("title") or "").strip()
+        import re
+        clean_title = re.sub(r'[\\/*?:\x22<>|]', '', title_text).strip()
+        clean_title = " ".join(clean_title.split())
+        if not clean_title:
+            clean_title = vid_id
+        output_path = os.path.join(OUTPUT_DIR, f"{clean_title}.mp4")
 
         # ── Render título como PNG via MoviePy (1 frame, rápido) ──
         import tempfile as _tf
@@ -1776,7 +1833,7 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
         musica_fundo = item.get("musica_fundo")
         if musica_fundo and musica_fundo != "none":
             modo = item.get("musica_modo", "100_musica")
-            vol_orig = 0.0 if modo == "100_musica" else 1.0
+            vol_orig = 0.0 if modo == "100_musica" else 2.0
             filtros.append(f"[0:a]volume={vol_orig}[aud_mod]")
             aud_map = "[aud_mod]"
         else:
