@@ -32,7 +32,7 @@ from config import (
     HOOK_TIPOS, HOOK_TIPO_DEFAULT, HOOK_SOM_OPCOES, HOOK_SOM_ENTRADA_DEFAULT,
     HOOK_SOM_SAIDA_DEFAULT, HOOK_TEXT_DEFAULT, HOOK_DURATION_S,
 )
-from video_processor import GPU_AVAILABLE, CODEC_VIDEO, processar_video, proximo_titulo, extrair_frame, obter_duracao
+from video_processor import GPU_AVAILABLE, CODEC_VIDEO, gpu_info, processar_video, proximo_titulo, extrair_frame, obter_duracao
 from viral_fetcher import buscar_videos_virais
 import drive_uploader
 import pastas
@@ -77,19 +77,13 @@ def _extrair_video_id(url: str) -> str | None:
     return None
 
 
-def _cleanup_local(clip_path: str | None, url: str | None) -> list[str]:
+def _cleanup_download(url: str | None) -> list[str]:
     """
-    Apaga o clip final (clips/) E o cru (downloads/<id>.mp4) após upload OK.
+    Apaga apenas o arquivo cru baixado (downloads/<id>.mp4) após upload OK.
+    O vídeo final em clips/ NÃO é apagado — fica preservado localmente.
     Devolve lista de paths removidos.
     """
     removidos = []
-    if clip_path and os.path.exists(clip_path):
-        try:
-            os.remove(clip_path)
-            removidos.append(clip_path)
-        except OSError as e:
-            print(f"[cleanup] falha apagando clip {clip_path}: {e}")
-
     vid_id = _extrair_video_id(url or "")
     if vid_id:
         cru = os.path.join(DOWNLOAD_DIR, f"{vid_id}.mp4")
@@ -98,7 +92,7 @@ def _cleanup_local(clip_path: str | None, url: str | None) -> list[str]:
                 os.remove(cru)
                 removidos.append(cru)
             except OSError as e:
-                print(f"[cleanup] falha apagando cru {cru}: {e}")
+                print(f"[cleanup] falha apagando download {cru}: {e}")
     return removidos
 
 # ── Estado em memória ─────────────────────────────────────────────────────────
@@ -224,8 +218,7 @@ async def _background_queue_worker():
                 item["status"] = "concluido"
                 await emit_fn({"type": "uploaded", "drive_id": info["file_id"], "drive_url": info["web_view_link"]})
                 
-                removidos = _cleanup_local(path, item.get("url"))
-                item["output_path"] = None
+                removidos = _cleanup_download(item.get("url"))
                 await emit_fn({"type": "cleaned", "removed": removidos})
             except Exception as e:
                 print(f"[drive] upload falhou: {e}")
@@ -458,11 +451,7 @@ class SearchRequest(BaseModel):
 
 @app.get("/api/gpu")
 def gpu_status():
-    return {
-        "available": GPU_AVAILABLE,
-        "codec":     CODEC_VIDEO,
-        "label":     "RTX 3060 Ti (NVENC)" if GPU_AVAILABLE else "CPU (libx264)",
-    }
+    return gpu_info()
 
 
 @app.get("/api/videos")
@@ -677,10 +666,7 @@ async def retry_upload(idx: int):
             "type": "uploaded", "idx": idx,
             "drive_id": info["file_id"], "drive_url": info["web_view_link"],
         })
-        # [TESTE] Remoção de vídeos locais desabilitada
-        # removidos = _cleanup_local(path, item.get("url"))
-        # item["output_path"] = None
-        removidos = []
+        removidos = _cleanup_download(item.get("url"))
         await manager.broadcast({"type": "cleaned", "idx": idx,
                                  "removed": removidos})
         return {"ok": True, "drive_url": info["web_view_link"],
@@ -984,6 +970,8 @@ class CreateRankingRequest(BaseModel):
     overlay:       str | None = None
     narrar_titulo_geral: bool = False
     legendar_titulo_geral: bool = False
+    trilha_fundo:  str | None = None
+    trilha_modo:   str | None = "50_50"
 
 
 @app.post("/api/ranking")
@@ -1011,8 +999,8 @@ def criar_ranking(req: CreateRankingRequest):
         "legendar_titulo_geral": req.legendar_titulo_geral,
         "transicao_tipo": "fade_preto",
         "transicao_sfx": "click",
-        "trilha_fundo": None,
-        "trilha_modo": "50_50",
+        "trilha_fundo": req.trilha_fundo,
+        "trilha_modo": req.trilha_modo or "50_50",
         "hook": None,
         "outro": {"texto": RANKING_OUTRO_DEFAULT_TEXTO, "estilo": RANKING_OUTRO_DEFAULT},
         "legenda": {"ativa": False, "estilo": "AMARELO_CLASSICO"},
@@ -1023,7 +1011,7 @@ def criar_ranking(req: CreateRankingRequest):
         "font": "Padrão",
         "cor_titulo": "Branco",
         "titulo_borda": True,
-        "itens_y": 660,
+        "itens_y": 820,
         "esquema_cores": "colorido",
         "layout_modo": "horizontal",
     }
@@ -1128,8 +1116,10 @@ def definir_item(rid: str, posicao: int, req: dict):
             dur = item.get("duracao_original_s")
 
         if link_changed:
-            item["trim_inicio_s"] = 0.0
-            item["trim_fim_s"] = float(dur) if dur else rk.get("duracao_fixa_s", 12.0)
+            if "trim_inicio_s" not in req or req["trim_inicio_s"] is None:
+                item["trim_inicio_s"] = 0.0
+            if "trim_fim_s" not in req or req["trim_fim_s"] is None:
+                item["trim_fim_s"] = float(dur) if dur else rk.get("duracao_fixa_s", 12.0)
         else:
             if not item["trim_fim_s"] or item["trim_fim_s"] <= item["trim_inicio_s"]:
                 item["trim_fim_s"] = float(dur) if dur else rk.get("duracao_fixa_s", 12.0)

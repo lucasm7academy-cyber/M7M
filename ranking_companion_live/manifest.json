@@ -23,6 +23,20 @@
   "side_panel": {
     "default_path": "sidepanel/sidepanel.html"
   },
+  "content_scripts": [
+    {
+      "matches": ["https://*.youtube.com/*", "https://youtu.be/*"],
+      "js": ["content/content.js"],
+      "css": ["content/content.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content/inline.js"],
+      "matches": ["https://*.youtube.com/*", "https://youtu.be/*"]
+    }
+  ],
   "background": {
     "service_worker": "background/service-worker.js"
   }

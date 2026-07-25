@@ -10,6 +10,7 @@ let currentTabVideoUrl = "";
 let currentTabVideoTitle = "";
 let activePositionEditing = 1; // Default position being edited
 let draggedCard = null; // Track currently dragged position card
+let availableMusicList = [];
 
 // ── Constants for UI Preview ──
 const CORES_HEX = {
@@ -26,6 +27,7 @@ const apiUrlInput = document.getElementById("apiUrlInput");
 const saveSettingsBtn = document.getElementById("saveSettingsBtn");
 
 const rankingSelect = document.getElementById("rankingSelect");
+const rankingStatusBadge = document.getElementById("rankingStatusBadge");
 const refreshRankingsBtn = document.getElementById("refreshRankingsBtn");
 const btnCreateTestPreset = document.getElementById("btnCreateTestPreset");
 const btnToggleCreateRanking = document.getElementById("btnToggleCreateRanking");
@@ -138,6 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
         loadRankings();
         loadDriveFolders();
         loadMusic();
+        startRankingStatusPolling();
       }
     });
   });
@@ -174,6 +177,7 @@ function setupEventListeners() {
             loadRankings();
             loadDriveFolders();
             loadMusic();
+            startRankingStatusPolling();
           }
         });
       });
@@ -193,6 +197,7 @@ function setupEventListeners() {
     if (activeRankingId) {
       loadRankingDetails(activeRankingId);
     } else {
+      renderSelectedStatusBadge(null);
       hideRankingDetails();
     }
   });
@@ -705,6 +710,92 @@ function setupEventListeners() {
     livePreviewBlurBg.style.opacity = "0";
     livePreviewFrame.style.opacity = "0";
   });
+
+  // YouTube shortcuts from content script
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    handleShortcutMessage(message);
+  });
+}
+
+// ── YouTube Shortcut Message Handler ──────────────────────────────────────────
+async function handleShortcutMessage(message) {
+  if (!activeRankingId || !activeRankingData) {
+    if (rankingSelect && rankingSelect.options.length > 1 && rankingSelect.options[1].value) {
+      activeRankingId = rankingSelect.options[1].value;
+      chrome.storage.local.set({ lastRankingId: activeRankingId });
+      rankingSelect.value = activeRankingId;
+      await loadRankingDetails(activeRankingId);
+    } else {
+      await createNewRanking();
+    }
+  }
+
+  if (!activePositionEditing) activePositionEditing = 1;
+
+  const msgUrl = message.url || currentTabVideoUrl;
+  const msgTitle = message.title || currentTabVideoTitle;
+
+  if (msgUrl) {
+    currentTabVideoUrl = msgUrl;
+    itemUrlInput.value = msgUrl;
+  }
+  if (msgTitle) {
+    currentTabVideoTitle = msgTitle;
+  }
+
+  if (message.type === "SHORTCUT_TRIM_START") {
+    const time = message.time;
+    if (time !== null && time !== undefined) {
+      const maxVal = parseFloat(trimInicioSlider.max) || 180;
+      trimInicioSlider.value = Math.min(time, maxVal);
+      updateDoubleSlider(true);
+
+      await saveCurrentItemEditorData();
+
+      const url = itemUrlInput.value.trim() || msgUrl;
+      if (url) triggerLivePreviewLoading(url, itemTitleInput.value.trim(), time);
+      showStatusMessage(`Início: ${time.toFixed(1)}s (Posição #${activePositionEditing || 1})`, "success");
+    }
+  } else if (message.type === "SHORTCUT_TRIM_END") {
+    const time = message.time;
+    if (time !== null && time !== undefined) {
+      const maxVal = parseFloat(trimFimSlider.max) || 180;
+      trimFimSlider.value = Math.min(time, maxVal);
+      updateDoubleSlider(false);
+
+      await saveCurrentItemEditorData();
+
+      const url = itemUrlInput.value.trim() || msgUrl;
+      if (url) triggerLivePreviewLoading(url, itemTitleInput.value.trim(), time);
+      showStatusMessage(`Fim: ${time.toFixed(1)}s (Posição #${activePositionEditing || 1})`, "success");
+    }
+  } else if (message.type === "SHORTCUT_TITLE_SAVE_NEXT") {
+    itemTitleInput.value = message.title || "";
+    if (msgUrl) itemUrlInput.value = msgUrl;
+    await saveAndAdvanceToNextPosition();
+  } else if (message.type === "YOUTUBE_NAVIGATED") {
+    await updateActiveTabInfo(true);
+  }
+}
+
+async function saveAndAdvanceToNextPosition() {
+  await saveCurrentItemEditorData();
+  if (!activeRankingData || !activeRankingData.itens) return;
+  const total = activeRankingData.itens.length;
+  let next = (activePositionEditing || 1) + 1;
+  if (next > total) next = 1;
+  const nextItem = activeRankingData.itens.find(it => it.posicao === next);
+  if (nextItem) {
+    activePositionEditing = next;
+    populateFormWithItem(nextItem);
+    await updateActiveTabInfo(true);
+    if (activeRankingData) {
+      renderRankingItems(activeRankingData);
+      updateLivePreviewItems();
+      updateLivePreviewOverlay();
+    }
+    showStatusMessage(`Avançado para posição #${next}`, "success");
+  }
 }
 
 // ── Double Slider Logic ──
@@ -797,9 +888,9 @@ async function loadMusic() {
   try {
     const res = await fetch(`${API_URL}/api/music`);
     if (res.ok) {
-      const musicList = await res.json();
+      availableMusicList = await res.json();
       globalTrilhaFundoSelect.innerHTML = '<option value="none">🔇 Sem música de fundo</option>';
-      musicList.forEach((m) => {
+      availableMusicList.forEach((m) => {
         globalTrilhaFundoSelect.innerHTML += `<option value="${m.file}">🎵 ${m.label}</option>`;
       });
       if (activeRankingData) {
@@ -853,10 +944,19 @@ async function loadRankings() {
 
     rankings.forEach((r) => {
       const isSelected = r.id === activeRankingId ? "selected" : "";
-      rankingSelect.innerHTML += `<option value="${r.id}" ${isSelected}>${r.titulo_geral || "(Sem título)"} [${r.itens.length} itens]</option>`;
+      rankingSelect.innerHTML += `<option value="${r.id}" ${isSelected}>${rankingOptionLabel(r)}</option>`;
     });
 
+    // Atualiza a etiqueta de status do ranking selecionado
+    const active = rankings.find((r) => r.id === activeRankingId);
+    renderSelectedStatusBadge(active ? rankingStatusMeta(active) : null);
+
     if (activeRankingId && rankings.some(r => r.id === activeRankingId)) {
+      loadRankingDetails(activeRankingId);
+    } else if (rankings.length > 0) {
+      activeRankingId = rankings[0].id;
+      chrome.storage.local.set({ lastRankingId: activeRankingId });
+      rankingSelect.value = activeRankingId;
       loadRankingDetails(activeRankingId);
     } else {
       rankingSelect.value = "";
@@ -869,12 +969,85 @@ async function loadRankings() {
   }
 }
 
+// ── Status visual dos rankings ──
+// Mapeia o campo `status` do backend para um indicador colorido.
+// Valores possíveis no backend: editando | na_fila | processando |
+// enviando_drive | concluido | erro | erro_upload.
+function rankingStatusMeta(r) {
+  const st = (r && r.status) || "editando";
+  switch (st) {
+    case "concluido":      return { icon: "🟢", label: "Concluído",             cls: "st-done" };
+    case "na_fila":        return { icon: "⏳", label: "Na fila",               cls: "st-queue" };
+    case "processando":    return { icon: "⚙️", label: "Processando...",        cls: "st-proc" };
+    case "enviando_drive": return { icon: "☁️", label: "Enviando ao Drive...",  cls: "st-proc" };
+    case "erro":           return { icon: "🔴", label: "Erro",                  cls: "st-err" };
+    case "erro_upload":    return { icon: "🔴", label: "Erro no upload",         cls: "st-err" };
+    default:               return { icon: "",   label: "Rascunho",              cls: "st-draft" };
+  }
+}
+
+// Monta o rótulo da <option> com o indicador de status na frente.
+function rankingOptionLabel(r) {
+  const meta = rankingStatusMeta(r);
+  const n = (r.itens || []).length;
+  const prefix = meta.icon ? `${meta.icon} ` : "";
+  return `${prefix}${r.titulo_geral || "(Sem título)"} [${n} itens]`;
+}
+
+// Etiqueta de status ao lado do select (para o ranking selecionado).
+function renderSelectedStatusBadge(meta) {
+  if (!rankingStatusBadge) return;
+  if (!activeRankingId || !meta) {
+    rankingStatusBadge.style.display = "none";
+    return;
+  }
+  rankingStatusBadge.textContent = `${meta.icon ? meta.icon + " " : ""}${meta.label}`;
+  rankingStatusBadge.className = `ranking-status-badge ${meta.cls}`;
+  rankingStatusBadge.style.display = "inline-flex";
+}
+
+// Atualiza APENAS os rótulos das options existentes (sem reconstruir o select,
+// preservando a seleção atual) + a etiqueta do ranking ativo.
+function applyRankingStatusesToSelect(rankings) {
+  const byId = {};
+  rankings.forEach((r) => { byId[r.id] = r; });
+  Array.from(rankingSelect.options).forEach((opt) => {
+    if (!opt.value) return;
+    const r = byId[opt.value];
+    if (!r) return;
+    const label = rankingOptionLabel(r);
+    if (opt.textContent !== label) opt.textContent = label;
+  });
+  const active = byId[activeRankingId];
+  renderSelectedStatusBadge(active ? rankingStatusMeta(active) : null);
+}
+
+// Polling leve: como não há WebSocket no painel, recarrega os status
+// periodicamente para refletir fila/processando/concluído em tempo real.
+let rankingStatusPoller = null;
+function startRankingStatusPolling() {
+  if (rankingStatusPoller) return;
+  rankingStatusPoller = setInterval(refreshRankingStatuses, 3000);
+}
+async function refreshRankingStatuses() {
+  if (!rankingSelect || rankingSelect.options.length <= 1) return;
+  try {
+    const res = await fetch(`${API_URL}/api/ranking`);
+    if (!res.ok) return;
+    const rankings = await res.json();
+    applyRankingStatusesToSelect(rankings);
+  } catch (e) {
+    /* silencioso: offline ou API indisponível */
+  }
+}
+
 async function loadRankingDetails(rid) {
   try {
     const res = await fetch(`${API_URL}/api/ranking/${rid}`);
     if (!res.ok) throw new Error("Erro ao ler ranking");
     const ranking = await res.json();
     activeRankingData = ranking;
+    renderSelectedStatusBadge(rankingStatusMeta(ranking));
 
     noRankingSelectedMsg.style.display = "none";
     rankingItemsList.style.display = "flex";
@@ -889,20 +1062,42 @@ async function loadRankingDetails(rid) {
     globalTitleYInput.value = ranking.title_y || 220;
     globalTitleYVal.textContent = (ranking.title_y || 220) + "px";
     if (globalItensYInput) {
-      globalItensYInput.value = ranking.itens_y || 660;
-      globalItensYVal.textContent = (ranking.itens_y || 660) + "px";
+      globalItensYInput.value = ranking.itens_y || 820;
+      globalItensYVal.textContent = (ranking.itens_y || 820) + "px";
     }
     globalTransicaoTipoSelect.value = ranking.transicao_tipo || "none";
     globalTransicaoSfxSelect.value = ranking.transicao_sfx || "none";
     
-    // Sync music inputs
+    // Sync music inputs (Preset automático com música aleatória + 50_50)
     if (globalTrilhaFundoSelect) {
+      if (!ranking.trilha_fundo || ranking.trilha_fundo === "none") {
+        if (availableMusicList && availableMusicList.length > 0) {
+          const randomIndex = Math.floor(Math.random() * availableMusicList.length);
+          const randomMusic = availableMusicList[randomIndex].file;
+          ranking.trilha_fundo = randomMusic;
+          ranking.trilha_modo = "50_50";
+          // Salva o preset automático no backend
+          fetch(`${API_URL}/api/ranking/${rid}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ trilha_fundo: randomMusic, trilha_modo: "50_50" })
+          }).catch(e => console.warn(e));
+        }
+      }
+      
       globalTrilhaFundoSelect.value = ranking.trilha_fundo || "none";
       if (ranking.trilha_fundo && ranking.trilha_fundo !== "none") {
         globalTrilhaModoContainer.style.display = "block";
         globalTrilhaModoSelect.value = ranking.trilha_modo || "50_50";
       } else {
         globalTrilhaModoContainer.style.display = "none";
+      }
+    }
+
+    if (!activePositionEditing || !ranking.itens.some(it => it.posicao === activePositionEditing)) {
+      if (ranking.itens && ranking.itens.length > 0) {
+        activePositionEditing = 1;
+        populateFormWithItem(ranking.itens[0]);
       }
     }
 
@@ -967,11 +1162,10 @@ function renderRankingItems(ranking) {
       <div class="position-badge ${isTopItem ? "pos-top" : ""}">${item.posicao}</div>
       <div class="position-info">
         <div class="position-title ${!hasLink ? "empty" : ""}">
-          ${hasLink ? (item.titulo_item || "Vídeo " + item.posicao) : "Vazio / Clique para atribuir o vídeo da aba"}
+          ${item.titulo_item ? item.titulo_item : (hasLink ? "Vídeo #" + item.posicao : "Posição #" + item.posicao + " (Sem vídeo)")}
         </div>
         <div class="position-meta">${metaHtml}</div>
       </div>
-      ${hasLink ? `<button class="btn-substitute" data-pos="${item.posicao}">Substituir</button>` : ""}
     `;
 
     // Drag and Drop Event Listeners
@@ -1040,39 +1234,11 @@ function renderRankingItems(ranking) {
       }
     });
 
-    // Make the entire card clickable to trigger edit/load or auto-include
-    card.addEventListener("click", async () => {
+    // Clicar no card seleciona a posição para edição
+    card.addEventListener("click", () => {
       activePositionEditing = item.posicao;
-      
-      if (!hasLink) {
-        if (currentTabVideoUrl) {
-          // If the card is empty, click to assign the current tab's video
-          await autoAssignTabVideoToPosition(item.posicao, currentTabVideoUrl, currentTabVideoTitle);
-        } else {
-          showStatusMessage("Nenhum vídeo detectado na aba ativa para atribuir!", "error");
-        }
-      } else {
-        // If the card already has a video, click to ONLY open configurations for editing
-        populateFormWithItem(item);
-      }
+      populateFormWithItem(item);
     });
-
-    // Add event listener to the substitute button
-    if (hasLink) {
-      const btnSub = card.querySelector(".btn-substitute");
-      if (btnSub) {
-        btnSub.addEventListener("click", async (e) => {
-          e.stopPropagation(); // Prevent triggering the card's click event
-          
-          activePositionEditing = item.posicao;
-          if (currentTabVideoUrl) {
-            await autoAssignTabVideoToPosition(item.posicao, currentTabVideoUrl, currentTabVideoTitle);
-          } else {
-            showStatusMessage("Nenhum vídeo detectado na aba ativa para atribuir!", "error");
-          }
-        });
-      }
-    }
 
     rankingItemsList.appendChild(card);
   });
@@ -1080,31 +1246,47 @@ function renderRankingItems(ranking) {
 
 async function createNewRanking() {
   const title = newRankingTitle.value.trim();
-  const qty = parseInt(newRankingQty.value, 10);
-  const order = newRankingOrder.value;
+  const qty = parseInt(newRankingQty.value, 10) || 3;
+  const order = newRankingOrder ? newRankingOrder.value : "decrescente";
 
   if (!title) {
     showStatusMessage("Insira um título para o ranking!", "error");
     return;
   }
 
+  let defaultMusic = null;
+  if (availableMusicList && availableMusicList.length > 0) {
+    const randomIndex = Math.floor(Math.random() * availableMusicList.length);
+    defaultMusic = availableMusicList[randomIndex].file;
+  }
+
   try {
+    const payload = {
+      titulo_geral: title,
+      quantidade: qty,
+      ordem: order
+    };
+    if (defaultMusic) {
+      payload.trilha_fundo = defaultMusic;
+      payload.trilha_modo = "50_50";
+    }
+
     const res = await fetch(`${API_URL}/api/ranking`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        titulo_geral: title,
-        quantidade: qty,
-        ordem: order
-      })
+      body: JSON.stringify(payload)
     });
 
-    if (!res.ok) throw new Error("Erro HTTP");
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Erro ao criar ranking:", res.status, errText);
+      throw new Error(`HTTP ${res.status}`);
+    }
     const newRanking = await res.json();
     
     newRankingTitle.value = "";
-    createRankingPanel.classList.add("collapsed");
-    btnToggleCreateRanking.textContent = "+ Novo";
+    if (createRankingPanel) createRankingPanel.classList.add("collapsed");
+    if (btnToggleCreateRanking) btnToggleCreateRanking.textContent = "+ Novo";
 
     activeRankingId = newRanking.id;
     chrome.storage.local.set({ lastRankingId: activeRankingId });
@@ -1112,7 +1294,7 @@ async function createNewRanking() {
     
     await loadRankings();
   } catch (e) {
-    console.error(e);
+    console.error("Erro em createNewRanking:", e);
     showStatusMessage("Falha ao criar o ranking", "error");
   }
 }
@@ -1330,6 +1512,7 @@ async function queueAndProcessRanking() {
 
     showStatusMessage("Ranking enfileirado! Renderização iniciada.", "success");
     await checkApiConnection();
+    await refreshRankingStatuses();
     await loadRankingDetails(activeRankingId);
   } catch (e) {
     console.error(e);
@@ -1339,10 +1522,13 @@ async function queueAndProcessRanking() {
 }
 
 // ── Tab Management & YouTube Scraper ──
-async function updateActiveTabInfo() {
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+async function updateActiveTabInfo(force = false) {
+  const tabs = await chrome.tabs.query({ active: true });
+  const tab = tabs && tabs.length > 0 ? tabs[0] : null;
   if (!tab || !tab.url) {
-    showNoVideoDetected();
+    if (!itemUrlInput.value) {
+      showNoVideoDetected();
+    }
     return;
   }
 
@@ -1353,32 +1539,23 @@ async function updateActiveTabInfo() {
   const isInstagram = url.includes("instagram.com/reel/") || url.includes("instagram.com/p/");
 
   if (isYouTube || isInstagram) {
-    if (currentTabVideoUrl === url) return;
+    if (!force && currentTabVideoUrl === url && itemUrlInput.value === url) return;
     currentTabVideoUrl = url;
     
     let cleanedTitle = title.replace(/ - YouTube$/, "").replace(/^\(\d+\)\s+/, "");
     currentTabVideoTitle = cleanedTitle;
 
+    // Atualiza o input de URL do item atual
     itemUrlInput.value = url;
-    
-    // Keep item title field empty by default so user types it
-    itemTitleInput.value = "";
 
-    // Reset range sliders to defaults first
-    trimInicioSlider.max = 180;
-    trimFimSlider.max = 180;
-    trimInicioSlider.value = 0;
-    trimFimSlider.value = 180;
-    updateDoubleSlider();
-
-    // Check if we can extract duration from the active tab directly
+    // Extrai a duração do vídeo da aba ativa
     let durationExtracted = false;
     try {
       const results = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: () => {
           const video = document.querySelector("video");
-          return video ? { duration: video.duration } : null;
+          return video ? { duration: video.duration, currentTime: video.currentTime } : null;
         }
       });
       if (results && results[0] && results[0].result) {
@@ -1386,8 +1563,10 @@ async function updateActiveTabInfo() {
         if (data.duration && data.duration > 0) {
           trimInicioSlider.max = data.duration;
           trimFimSlider.max = data.duration;
-          trimInicioSlider.value = 0;
-          trimFimSlider.value = data.duration;
+          const currentTrimFim = parseFloat(trimFimSlider.value) || 180;
+          if (currentTrimFim > data.duration || currentTrimFim === 180 || currentTrimFim === 0) {
+            trimFimSlider.value = data.duration;
+          }
           updateDoubleSlider();
           durationExtracted = true;
         }
@@ -1396,13 +1575,15 @@ async function updateActiveTabInfo() {
       console.warn("Could not query tab details directly:", e);
     }
 
-    // Fallback: If duration wasn't extracted from the tab, query the API
-    if (!durationExtracted) {
+    // Fallback: Se não extraiu do DOM, busca via API
+    if (!durationExtracted && url) {
       fetchVideoDurationAndSetupSlider(url);
     }
 
-    videoYInput.value = 0;
-    videoYVal.textContent = "0px";
+    if (!videoYInput.value || videoYInput.value === "0") {
+      videoYInput.value = 150;
+      videoYVal.textContent = "150px";
+    }
 
     const videoId = extractVideoId(url);
     if (isYouTube && videoId) {
@@ -1417,8 +1598,16 @@ async function updateActiveTabInfo() {
     noVideoMsg.style.display = "none";
     videoDetails.style.display = "flex";
 
-    // Load live preview
-    triggerLivePreviewLoading(url, "");
+    // Atualiza o link do item na memória
+    if (activeRankingData && activeRankingData.itens) {
+      const curItem = activeRankingData.itens.find(it => it.posicao === activePositionEditing);
+      if (curItem) {
+        curItem.link = url;
+      }
+    }
+
+    // Atualiza o preview
+    triggerLivePreviewLoading(url, itemTitleInput.value.trim());
   } else {
     if (!itemUrlInput.value) {
       showNoVideoDetected();
@@ -1479,6 +1668,16 @@ function extractVideoId(url) {
 // ── Real-time 9:16 Live Preview ──
 function triggerLivePreviewLoading(url, title, time = null) {
   if (!activeRankingId) return;
+
+  if (!url || !url.trim()) {
+    livePreviewFrame.style.opacity = "0";
+    livePreviewBlurBg.style.opacity = "0";
+    livePreviewFallback.style.display = "none";
+    previewLoadingBadge.style.display = "none";
+    updateLivePreviewOverlay();
+    updateLivePreviewItems();
+    return;
+  }
 
   livePreviewArea.style.display = "flex";
   previewLoadingBadge.style.display = "inline";
@@ -1573,7 +1772,7 @@ function updateLivePreviewItems() {
   }
 
   // Items positioning
-  const itensY = activeRankingData.itens_y || 660;
+  const itensY = activeRankingData.itens_y || 820;
   livePreviewItemsList.style.top = `${(itensY / 19.2)}%`;
 
   // Sort and render items (always show 1 at the top, N at the bottom)
@@ -1707,7 +1906,8 @@ function showStatusMessage(text, type = "success") {
 
 // ── Interactive Preview Tarja Math & Saving ──
 async function saveCurrentItemEditorData() {
-  if (!activeRankingId || !activePositionEditing) return;
+  if (!activeRankingId) return;
+  if (!activePositionEditing) activePositionEditing = 1;
 
   const url = itemUrlInput.value.trim();
   const title = itemTitleInput.value.trim();
@@ -1748,33 +1948,17 @@ async function saveCurrentItemEditorData() {
       })
     });
     if (res.ok) {
-      // Update local cache
-      if (activeRankingData) {
-        const item = activeRankingData.itens.find(it => it.posicao === activePositionEditing);
-        if (item) {
-          item.titulo_item = title;
-          item.link = url;
-          item.trim_inicio_s = trimInicio;
-          item.trim_fim_s = trimFim;
-          item.video_y = videoY;
-          item.narracao_texto = narration;
-          item.transicao_sfx = transicaoSfx;
-          item.transicao_tipo = transicaoTipo;
-          item.tarja = {
-            ativo: tarjaAtiva,
-            texto: tarjaTexto,
-            x: tarjaX,
-            y: tarjaY,
-            w: tarjaW,
-            h: tarjaH
-          };
+      const savedItem = await res.json();
+      // Update local cache with exact saved item from backend
+      if (activeRankingData && activeRankingData.itens) {
+        const idx = activeRankingData.itens.findIndex(it => it.posicao === activePositionEditing);
+        if (idx !== -1) {
+          activeRankingData.itens[idx] = savedItem;
         }
       }
-      // Update list view text
-      const cardTitle = document.querySelector(`.position-card[data-pos="${activePositionEditing}"] .position-title`);
-      if (cardTitle) cardTitle.textContent = title || "Sem título";
-      
+      renderRankingItems(activeRankingData);
       updateLivePreviewItems();
+      return savedItem;
     }
   } catch (err) {
     console.error("Erro ao salvar dados do formulário:", err);

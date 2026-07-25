@@ -403,6 +403,44 @@ input.input-readonly {
   flex-grow: 1;
 }
 
+/* ── Etiqueta de status do ranking selecionado ── */
+.ranking-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--border-strong);
+}
+.ranking-status-badge.st-done {
+  background: var(--green-soft);
+  border-color: rgba(0, 255, 136, 0.25);
+  color: var(--green);
+}
+.ranking-status-badge.st-queue {
+  background: var(--amber-soft);
+  border-color: rgba(255, 170, 0, 0.25);
+  color: var(--amber);
+}
+.ranking-status-badge.st-proc {
+  background: var(--cyan-soft);
+  border-color: rgba(0, 187, 255, 0.25);
+  color: var(--cyan);
+}
+.ranking-status-badge.st-err {
+  background: var(--red-soft);
+  border-color: rgba(255, 51, 85, 0.25);
+  color: var(--red);
+}
+.ranking-status-badge.st-draft {
+  background: transparent;
+  color: var(--text-muted);
+}
+
 /* ── Alerts ── */
 .alert-box {
   padding: 10px 12px;
@@ -812,7 +850,7 @@ input.input-readonly {
   width: 80%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 28px;
   z-index: 5;
   pointer-events: none;
 }

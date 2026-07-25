@@ -118,7 +118,7 @@ function updateItemsList(activePos, activeTitle) {
   if (!livePreviewItemsList || !activeRankingData) return;
   livePreviewItemsList.innerHTML = "";
 
-  const itensY = activeRankingData.itens_y || 660;
+  const itensY = activeRankingData.itens_y || 820;
   livePreviewItemsList.style.top = `${(itensY / 19.2)}%`;
 
   const sorted = [...activeRankingData.itens].sort((a, b) => a.posicao - b.posicao);

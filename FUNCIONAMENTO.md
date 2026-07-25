@@ -140,7 +140,10 @@ Tudo começa no **worker contínuo** `_background_queue_worker` (iniciado no sta
 - Caixa preta (`config.TARJA_DEFAULT`, fração 0..1) arrastável no preview para cobrir marca d'água, com texto opcional.
 
 ### 5.12 Exportação e GPU
-- Detecção de **NVENC** (`_detectar_nvenc`): se disponível usa `h264_nvenc` (GPU), senão `libx264` (CPU).
+- Detecção em **cascata** (`_detectar_encoder`): **NVENC** (`h264_nvenc`, NVIDIA) → **AMF** (`h264_amf`, AMD) → **libx264** (CPU).
+- O probe (`_probe_encoder`) encoda 1s de `testsrc` com os mesmos flags do pipeline, então um driver que rejeita alguma opção reprova no boot e cai pro próximo — nunca quebra no meio de um render.
+- `VIDEO_ENCODER=nvenc|amf|cpu` força um encoder específico e pula a cascata.
+- O nome real da placa (`nvidia-smi` / WMI) é resolvido sob demanda no `/api/gpu` e cacheado.
 - O MoviePy emite progresso da exportação via `proglog` (`_EmitLogger`) → evento `progress` (fase `exportando`).
 
 ### 5.13 Upload para o Drive (`drive_uploader.py`)
@@ -173,6 +176,7 @@ Tudo começa no **worker contínuo** `_background_queue_worker` (iniciado no sta
 | `ESTILOS_LEGENDA` | AMARELO_CLASSICO, POP_BRANCO, BOX_HORMOZI, NEON_VERDE | Estilos de legenda |
 | `HOOK_TIPOS` / `HOOK_DURATION_S` | textao/corte_seco / 3.0 | Hook de retenção |
 | `HOOK_SOM_OPCOES` | whoosh, camera, click, notificacao, none | SFX do hook |
+| `VIDEO_ENCODER` | (vazio = cascata) | Força `nvenc`, `amf` ou `cpu` |
 
 ---
 
@@ -180,7 +184,7 @@ Tudo começa no **worker contínuo** `_background_queue_worker` (iniciado no sta
 
 | Método | Rota | Função |
 |--------|------|--------|
-| GET | `/api/gpu` | Status da GPU (NVENC) |
+| GET | `/api/gpu` | Status da GPU (NVENC / AMF / CPU) |
 | GET/POST | `/api/videos` | Lista / adiciona vídeo |
 | DELETE/PATCH | `/api/videos/{idx}` | Remove / edita vídeo |
 | POST | `/api/videos/{idx}/queue` · DELETE `…/queue` | Enfileira / desenfileira |

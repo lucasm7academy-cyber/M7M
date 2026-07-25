@@ -20,29 +20,14 @@ from narration import PIPER_AVAILABLE, gerar_wav, get_audio_duration
 import subtitles
 
 # ── GPU detection ─────────────────────────────────────────────────────────────
+#
+# Cascata: NVENC (NVIDIA) → AMF (AMD) → libx264 (CPU).
+# O probe encoda 1s de verdade com EXATAMENTE os flags que o pipeline vai usar,
+# então uma opção que o driver não aceita reprova aqui no boot em vez de
+# quebrar no meio de um render.
 
-def _detectar_nvenc() -> bool:
-    try:
-        import tempfile
-        tmp = os.path.join(tempfile.gettempdir(), "_nvenc_probe.mp4")
-        r = subprocess.run(
-            ["ffmpeg", "-y",
-             "-f", "lavfi", "-i", "testsrc=duration=1:size=1280x720:rate=30",
-             "-c:v", "h264_nvenc", "-b:v", "5M", tmp],
-            capture_output=True, timeout=15,
-        )
-        if os.path.exists(tmp):
-            os.remove(tmp)
-        return r.returncode == 0
-    except Exception:
-        return False
-
-
-GPU_AVAILABLE = _detectar_nvenc()
-
-if GPU_AVAILABLE:
-    CODEC_VIDEO   = "h264_nvenc"
-    FFMPEG_PARAMS = [
+_ENCODERS_HW = [
+    ("h264_nvenc", [
         "-preset", "p1",
         "-rc",     "vbr",
         "-cq",     "22",
@@ -50,12 +35,118 @@ if GPU_AVAILABLE:
         "-maxrate","20M",
         "-bufsize", "30M",
         "-map_metadata", "-1",
-    ]
-    print("[GPU] h264_nvenc — NVENC ativo")
-else:
-    CODEC_VIDEO   = "libx264"
-    FFMPEG_PARAMS = ["-preset", "ultrafast", "-crf", "22", "-map_metadata", "-1"]
-    print("[CPU] libx264 — sem NVENC")
+    ]),
+    ("h264_amf", [
+        "-usage",   "transcoding",
+        "-quality", "balanced",
+        "-rc",      "vbr_peak",
+        "-b:v",     "10M",
+        "-maxrate", "20M",
+        "-bufsize", "30M",
+        "-map_metadata", "-1",
+    ]),
+]
+
+_PARAMS_CPU = ["-preset", "ultrafast", "-crf", "22", "-map_metadata", "-1"]
+
+_SIGLA_HW = {"h264_nvenc": "NVENC", "h264_amf": "AMF"}
+
+
+def _probe_encoder(codec: str, params: list) -> bool:
+    """Encoda 1s de testsrc com codec+params reais. True se o ffmpeg aceitou."""
+    tmp = os.path.join(tempfile.gettempdir(), f"_probe_{codec}.mp4")
+    try:
+        r = subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error",
+             "-f", "lavfi", "-i", "testsrc=duration=1:size=1280x720:rate=30",
+             "-c:v", codec, *params, tmp],
+            capture_output=True, timeout=30,
+        )
+        return r.returncode == 0 and os.path.exists(tmp) and os.path.getsize(tmp) > 0
+    except Exception:
+        return False
+    finally:
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except OSError:
+            pass
+
+
+def _detectar_encoder():
+    """Devolve (codec, params, acelerado).
+
+    `VIDEO_ENCODER` no ambiente força um específico: `nvenc`, `amf` ou `cpu`.
+    """
+    forcado = os.environ.get("VIDEO_ENCODER", "").strip().lower()
+    if forcado in ("cpu", "libx264"):
+        print("[CPU] libx264 — forçado por VIDEO_ENCODER")
+        return "libx264", _PARAMS_CPU, False
+
+    for codec, params in _ENCODERS_HW:
+        if forcado and forcado not in (codec, codec.replace("h264_", "")):
+            continue
+        if _probe_encoder(codec, params):
+            print(f"[GPU] {codec} — {_SIGLA_HW[codec]} ativo")
+            return codec, params, True
+        print(f"[GPU] {codec} indisponível")
+
+    print("[CPU] libx264 — sem encoder de hardware")
+    return "libx264", _PARAMS_CPU, False
+
+
+CODEC_VIDEO, FFMPEG_PARAMS, GPU_AVAILABLE = _detectar_encoder()
+
+# Nome real da placa — resolvido sob demanda (não atrasa o boot) e cacheado.
+_gpu_nome = None
+
+
+def _encurtar(nome: str) -> str:
+    """'NVIDIA GeForce RTX 3060 Ti' → 'RTX 3060 Ti' (cabe no badge do header)."""
+    for prefixo in ("NVIDIA GeForce ", "NVIDIA ", "AMD Radeon ", "Radeon ", "AMD "):
+        if nome.startswith(prefixo):
+            nome = nome[len(prefixo):]
+            break
+    return nome.strip()
+
+
+def _consultar_nome_gpu() -> str:
+    """Nome da placa via nvidia-smi (NVIDIA) ou WMI (AMD). '' se não descobrir."""
+    try:
+        if CODEC_VIDEO == "h264_nvenc":
+            r = subprocess.run(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                capture_output=True, timeout=10,
+            )
+        elif CODEC_VIDEO == "h264_amf":
+            r = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                 "(Get-CimInstance Win32_VideoController | "
+                 "Where-Object { $_.Name -match 'AMD|Radeon' } | "
+                 "Select-Object -First 1).Name"],
+                capture_output=True, timeout=20,
+            )
+        else:
+            return ""
+        if r.returncode != 0:
+            return ""
+        linhas = r.stdout.decode("utf-8", errors="replace").strip().splitlines()
+        return _encurtar(linhas[0]) if linhas else ""
+    except Exception:
+        return ""
+
+
+def gpu_info() -> dict:
+    """Payload do /api/gpu — mesmas chaves de sempre (available/codec/label)."""
+    global _gpu_nome
+    if _gpu_nome is None:
+        _gpu_nome = _consultar_nome_gpu()
+    if not GPU_AVAILABLE:
+        label = "CPU (libx264)"
+    else:
+        sigla = _SIGLA_HW.get(CODEC_VIDEO, CODEC_VIDEO)
+        label = f"{_gpu_nome} ({sigla})" if _gpu_nome else f"GPU ({sigla})"
+    return {"available": GPU_AVAILABLE, "codec": CODEC_VIDEO, "label": label}
 
 # ── Viral Intro ────────────────────────────────────────────────────────────────
 
@@ -1545,7 +1636,7 @@ def _adicionar_trilha_fundo(video_path: str, musica_fundo: str, modo: str) -> bo
             print(f"[trilha] música não encontrada: {musica_path}")
             return False
 
-    vol_musica = 1.0 if modo == "100_musica" else 0.25
+    vol_musica = 1.0 if modo == "100_musica" else 0.12
     out_path = video_path + ".trilha.mp4"
     
     dur = _get_video_duration(video_path)

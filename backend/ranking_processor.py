@@ -159,9 +159,9 @@ def _render_side_list_png(ranking: dict, current_posicao: int) -> str | None:
         itens_visuais = sorted(ranking.get("itens", []), key=lambda x: x.get("posicao", 0))
         
         # Medidas equivalentes ao frontend:
-        y_offset = int(ranking.get("itens_y") or 660)
+        y_offset = int(ranking.get("itens_y") or 820)
         x_offset = 65
-        line_height = 155
+        line_height = 210
         
         font_file = font_path(ranking.get("font", FONT_DEFAULT))
         try:
@@ -460,7 +460,7 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
 
     if sfx_path:
         inputs += ["-i", sfx_path]
-        vol_sfx = 2.5 if transicao_sfx == "whoosh" else 2.0
+        vol_sfx = 1.5 if transicao_sfx == "whoosh" else 1.2
         filtros.append(f"[{i}:a]volume={vol_sfx}[a_sfx]")
         extra_audios.append("a_sfx")
         i += 1
@@ -675,7 +675,7 @@ def _mixar_sfx_em_ponto(video_path: str, sfx_path: str, timestamp_s: float, anti
         "ffmpeg", "-y", "-loglevel", "error",
         "-i", video_path, "-i", sfx_path,
         "-filter_complex",
-        f"[1:a]adelay={delay_ms}|{delay_ms},volume=2.2[sfx];[0:a][sfx]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[aout]",
+            f"[1:a]adelay={delay_ms}|{delay_ms},volume=1.3[sfx];[0:a][sfx]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[aout]",
         "-map", "0:v:0", "-map", "[aout]",
         "-c:v", "copy",
         "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
@@ -697,35 +697,8 @@ def concatenar_ranking(item_paths: list[str], itens_ordenados: list[dict], globa
     if not item_paths:
         return None
 
-    # 1. Aplicar a transição de entrada do primeiro item (vindo do preto), se houver.
-    first_item = itens_ordenados[0]
-    tipo_trans_first = first_item.get("transicao_tipo", "default")
-    if not tipo_trans_first or tipo_trans_first == "default":
-        tipo_trans_first = transicao_tipo
-
-    if tipo_trans_first and tipo_trans_first != "none":
-        dur_s = 0.8 if tipo_trans_first == "fade_preto" else 0.5
-        fd, black_path = tempfile.mkstemp(suffix=".mp4", prefix="rk_start_black_", dir=_rank_tmp_dir())
-        os.close(fd)
-        
-        # Cria um vídeo preto curto ligeiramente maior que dur_s para passar na validação (dur_a > dur_s)
-        dur_black = dur_s + 0.1
-        cmd_black = [
-            "ffmpeg", "-y", "-loglevel", "error",
-            "-f", "lavfi", "-i", f"color=c=black:s={WIDTH}x{HEIGHT}:r={RANKING_FPS}",
-            "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-            "-t", f"{dur_black:.2f}",
-            "-c:v", CODEC_VIDEO, *FFMPEG_PARAMS,
-            "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
-            black_path
-        ]
-        r_black = _run(cmd_black, timeout=30)
-        if r_black.returncode == 0 and os.path.exists(black_path):
-            joined_first = aplicar_transicao(black_path, item_paths[0], tipo_trans_first, None)
-            if joined_first:
-                item_paths[0] = joined_first
-            try: os.unlink(black_path)
-            except OSError: pass
+    # 1. Primeiro item: sem fade do preto — já começa direto no frame real do vídeo.
+    # (o fade de transição só se aplica entre os itens subsequentes)
 
     if len(item_paths) == 1:
         return item_paths[0]
@@ -964,7 +937,7 @@ def montar_ranking(ranking: dict, emit) -> str | None:
 
     # Executa o processamento concorrente dos itens (paraleliza download e renderização)
     print(f"[RANKING] ⚡ Iniciando processamento paralelo de todos os {len(itens_ordenados)} itens...")
-    with ThreadPoolExecutor(max_workers=len(itens_ordenados)) as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         # Executa todos concorrentemente e aguarda a finalização
         list(executor.map(lambda pair: process_single_item(pair[0], pair[1]), enumerate(itens_ordenados)))
         
@@ -1180,7 +1153,7 @@ def montar_ranking(ranking: dict, emit) -> str | None:
     except Exception as e:
         print(f"[ranking] normalização final falhou: {e}")
 
-    # Renomear/copiar o arquivo final usando o título geral do ranking limpo
+    # Mover arquivo final para clips/ usando o título do ranking
     titulo_geral = ranking.get("titulo_geral") or "ranking"
     import re
     clean_title = re.sub(r'[\\/*?:\x22<>|]', '', titulo_geral).strip()
@@ -1193,15 +1166,31 @@ def montar_ranking(ranking: dict, emit) -> str | None:
         if os.path.exists(final_rename):
             try: os.unlink(final_rename)
             except OSError: pass
-        shutil.copy2(final, final_rename)
-        try: os.unlink(final)
-        except OSError: pass
+        shutil.move(final, final_rename)
         final = final_rename
     except Exception as e:
-        print(f"[ranking] falha ao renomear arquivo final para o título do ranking: {e}")
+        print(f"[ranking] falha ao mover arquivo final: {e}, tentando copia...")
+        try:
+            shutil.copy2(final, final_rename)
+            try: os.unlink(final)
+            except OSError: pass
+            final = final_rename
+        except Exception as e2:
+            print(f"[ranking] falha na copia tambem: {e2}, arquivo em: {final}")
 
     print("\n" + "="*80)
     print(f"[PROCESSADOR] 🎉 RANKING CONCLUÍDO COM SUCESSO!")
     print(f"[PROCESSADOR] Arquivo Final: {final}")
     print("="*80 + "\n")
+
+    # Limpar clips intermediarios (APENAS depois do arquivo final estar seguro)
+    import glob
+    for pattern in ["rk_item_*.mp4", "rk_cat_*.mp4", "rk_trans_*.mp4", "rk_sfx_*.mp4", "rk_norm_*.mp4"]:
+        for f in glob.glob(os.path.join(OUTPUT_DIR, pattern)):
+            try: os.unlink(f)
+            except OSError: pass
+    if os.path.isdir(_RANK_TMP):
+        try: shutil.rmtree(_RANK_TMP, ignore_errors=True)
+        except Exception: pass
+
     return final
