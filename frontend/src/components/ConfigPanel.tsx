@@ -797,7 +797,7 @@ export default function ConfigPanel({
           </select>
 
           {video.musica_fundo && video.musica_fundo !== 'none' && (
-            <div className="flex gap-1 pt-0.5">
+            <div className="flex flex-col gap-1 pt-0.5">
               <button
                 onClick={() => onChange({ musica_modo: '100_musica' })}
                 className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium border transition-all cursor-pointer ${
@@ -810,15 +810,26 @@ export default function ConfigPanel({
                 100% Música (Sem Áudio Original)
               </button>
               <button
+                onClick={() => onChange({ musica_modo: 'ducking' })}
+                className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium border transition-all cursor-pointer ${
+                  video.musica_modo === 'ducking'
+                    ? 'bg-accent/20 border-accent text-accent font-semibold'
+                    : 'bg-card2 border-border text-muted hover:text-white'
+                }`}
+                title="Mantém 100% do áudio original e toca a música num nível audível que abaixa sozinho quando alguém fala"
+              >
+                Música Dinâmica (abaixa na fala)
+              </button>
+              <button
                 onClick={() => onChange({ musica_modo: '50_50' })}
                 className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium border transition-all cursor-pointer ${
                   video.musica_modo === '50_50'
                     ? 'bg-accent/20 border-accent text-accent font-semibold'
                     : 'bg-card2 border-border text-muted hover:text-white'
                 }`}
-                title="Mixa a música com 30% e 100% do áudio original do vídeo"
+                title="Mantém 100% do áudio original do vídeo e mixa a música baixinha ao fundo (~25%)"
               >
-                30% Música / 100% Original
+                25% Música / 100% Original
               </button>
             </div>
           )}

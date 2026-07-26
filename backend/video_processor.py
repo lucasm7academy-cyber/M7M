@@ -1619,6 +1619,49 @@ def _adicionar_hook(
             except OSError: pass
 
 
+def _filtro_trilha(modo: str) -> str:
+    """
+    Monta o -filter_complex da trilha de fundo para o modo dado.
+
+    Entradas esperadas no comando ffmpeg:
+        [0:a] = áudio do vídeo    [1:a] = música
+    Saída: [final_a]
+
+    Modos:
+        100_musica  → música sozinha a 100% (o áudio do clipe já vem mudo do item)
+        ducking     → música a 50% recuando sozinha quando há voz no clipe
+        qualquer outro (inclui 50_50) → música em nível fixo baixo
+
+    0.12 é amplitude linear (≈ -18 dB), o que o ouvido percebe como ~25% do
+    volume. Por isso os painéis rotulam esse modo como "25% Música / 100%
+    Original". Se mudar este número, atualize também os rótulos em:
+        ranking_companion_live/sidepanel/sidepanel.html
+        frontend/src/ranking/RankingGlobalConfigPanel.tsx
+        frontend/src/components/ConfigPanel.tsx
+    """
+    _MIX = "amix=inputs=2:duration=first:dropout_transition=0:normalize=0[final_a]"
+
+    if modo == "100_musica":
+        return f"[1:a]volume=1.0[mus];[0:a][mus]{_MIX}"
+
+    if modo == "ducking":
+        # O áudio do clipe é duplicado: [voz] entra na mistura final intacto
+        # (100%), [key] vira só o gatilho do compressor. O passa-banda no
+        # gatilho concentra a detecção na região da fala, reduzindo disparo
+        # por graves e por música de fundo já embutida no clipe.
+        return (
+            f"[0:a]asplit=2[voz][key_raw];"
+            f"[key_raw]highpass=f=200,lowpass=f=4000[key];"
+            f"[1:a]volume={TRILHA_VOL_DUCK}[mus];"
+            f"[mus][key]sidechaincompress="
+            f"threshold={TRILHA_DUCK_THRESHOLD}:ratio={TRILHA_DUCK_RATIO}"
+            f":attack={TRILHA_DUCK_ATTACK_MS}:release={TRILHA_DUCK_RELEASE_MS}[mus_duck];"
+            f"[voz][mus_duck]{_MIX}"
+        )
+
+    return f"[1:a]volume=0.12[mus];[0:a][mus]{_MIX}"
+
+
 def _adicionar_trilha_fundo(video_path: str, musica_fundo: str, modo: str) -> bool:
     """
     Adiciona trilha sonora (mp3) sobre todo o vídeo final.
@@ -1636,16 +1679,14 @@ def _adicionar_trilha_fundo(video_path: str, musica_fundo: str, modo: str) -> bo
             print(f"[trilha] música não encontrada: {musica_path}")
             return False
 
-    vol_musica = 1.0 if modo == "100_musica" else 0.12
     out_path = video_path + ".trilha.mp4"
-    
+
     dur = _get_video_duration(video_path)
     cmd = [
         "ffmpeg", "-y", "-loglevel", "error",
         "-i", video_path,
         "-stream_loop", "-1", "-i", musica_path,
-        "-filter_complex",
-        f"[1:a]volume={vol_musica}[mus];[0:a][mus]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[final_a]",
+        "-filter_complex", _filtro_trilha(modo),
         "-map", "0:v:0", "-map", "[final_a]",
         "-c:v", "copy",
         "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
@@ -1663,7 +1704,7 @@ def _adicionar_trilha_fundo(video_path: str, musica_fundo: str, modo: str) -> bo
                 except OSError: pass
             return False
         os.replace(out_path, video_path)
-        print(f"[trilha] aplicou '{musica_fundo}' (modo={modo}, vol={vol_musica}) com sucesso!")
+        print(f"[trilha] aplicou '{musica_fundo}' (modo={modo}) com sucesso!")
         return True
     except Exception as e:
         print(f"[trilha] erro ao aplicar música: {e}")
@@ -1924,7 +1965,9 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
         musica_fundo = item.get("musica_fundo")
         if musica_fundo and musica_fundo != "none":
             modo = item.get("musica_modo", "100_musica")
-            vol_orig = 0.0 if modo == "100_musica" else 2.0
+            # 1.0 = 100% real do áudio original (era 2.0/+6 dB, que fazia a música própria
+            # do vídeo fonte competir com a trilha de fundo como se fossem duas músicas)
+            vol_orig = 0.0 if modo == "100_musica" else 1.0
             filtros.append(f"[0:a]volume={vol_orig}[aud_mod]")
             aud_map = "[aud_mod]"
         else:

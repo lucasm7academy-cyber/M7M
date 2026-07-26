@@ -198,6 +198,23 @@ NARRATION_DUCK_VOLUME      = 0.03
 # 0 = corte seco; 0.3 = transição perceptível e natural.
 NARRATION_FADE_S           = 0.3
 
+# ── Trilha de fundo (música) ─────────────────────────────────────────────────
+# Nível base da música no modo "ducking", em amplitude linear, ANTES do
+# compressor. O sidechaincompress derruba esse valor enquanto há voz no clipe.
+TRILHA_VOL_DUCK            = 0.5
+# Parâmetros do sidechaincompress, calibrados por medição — rode
+# backend/test_trilha_ducking_audio.py depois de mexer neles.
+# Alvo: música ~0.5 sem voz, ~0.12 com voz (≈ 12 dB de diferença). Estes
+# valores medem 12.00 dB no clipe sintético de teste.
+# Na varredura, ratio praticamente não move o resultado (7.6 dB a 8.2 dB indo
+# de 8 para 20); quem controla a profundidade do duck é o threshold.
+TRILHA_DUCK_THRESHOLD      = 0.018
+TRILHA_DUCK_RATIO          = 12
+# attack curto pega o início da fala antes da música vazar por cima da primeira
+# sílaba; release longo evita o bombeamento que denuncia compressão malfeita.
+TRILHA_DUCK_ATTACK_MS      = 20
+TRILHA_DUCK_RELEASE_MS     = 350
+
 # ── Legendas automáticas (faster-whisper + libass) ───────────────────────────
 # Whisper roda na GPU pra transcrever o áudio com timestamps por palavra.
 WHISPER_MODEL_SIZE   = os.environ.get("WHISPER_MODEL_SIZE", "small")
