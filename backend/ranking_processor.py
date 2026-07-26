@@ -420,8 +420,11 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
         cur = "final_v"
 
     # Áudio original do item (muta se trilha_modo for 100_musica)
+    # No modo 50_50 mantemos o original em 1.0 (100% real, como diz o rótulo do painel).
+    # Antes era 2.0 (+6 dB), o que fazia a música própria do clipe fonte soar como uma
+    # segunda trilha por cima da trilha de fundo escolhida.
     trilha_modo = ranking.get("trilha_modo", "50_50")
-    vol_base = 0.0 if trilha_modo == "100_musica" else 2.0
+    vol_base = 0.0 if trilha_modo == "100_musica" else 1.0
 
     # Narração do item
     narracao_wav = None

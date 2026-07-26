@@ -1636,6 +1636,12 @@ def _adicionar_trilha_fundo(video_path: str, musica_fundo: str, modo: str) -> bo
             print(f"[trilha] música não encontrada: {musica_path}")
             return False
 
+    # 0.12 é amplitude linear (≈ -18 dB), o que o ouvido percebe como ~25% do volume.
+    # Por isso os painéis rotulam esse modo como "25% Música / 100% Original".
+    # Se mudar este número, atualize também os rótulos em:
+    #   ranking_companion_live/sidepanel/sidepanel.html
+    #   frontend/src/ranking/RankingGlobalConfigPanel.tsx
+    #   frontend/src/components/ConfigPanel.tsx
     vol_musica = 1.0 if modo == "100_musica" else 0.12
     out_path = video_path + ".trilha.mp4"
     
@@ -1924,7 +1930,9 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
         musica_fundo = item.get("musica_fundo")
         if musica_fundo and musica_fundo != "none":
             modo = item.get("musica_modo", "100_musica")
-            vol_orig = 0.0 if modo == "100_musica" else 2.0
+            # 1.0 = 100% real do áudio original (era 2.0/+6 dB, que fazia a música própria
+            # do vídeo fonte competir com a trilha de fundo como se fossem duas músicas)
+            vol_orig = 0.0 if modo == "100_musica" else 1.0
             filtros.append(f"[0:a]volume={vol_orig}[aud_mod]")
             aud_map = "[aud_mod]"
         else:
