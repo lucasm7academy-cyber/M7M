@@ -204,12 +204,28 @@ NARRATION_FADE_S           = 0.3
 TRILHA_VOL_DUCK            = 0.5
 # Parâmetros do sidechaincompress, calibrados por medição — rode
 # backend/test_trilha_ducking_audio.py depois de mexer neles.
-# Alvo: música ~0.5 sem voz, ~0.12 com voz (≈ 12 dB de diferença). Estes
-# valores medem 12.00 dB no clipe sintético de teste.
-# Na varredura, ratio praticamente não move o resultado (7.6 dB a 8.2 dB indo
-# de 8 para 20); quem controla a profundidade do duck é o threshold.
-TRILHA_DUCK_THRESHOLD      = 0.018
-TRILHA_DUCK_RATIO          = 12
+#
+# O threshold é o ponto de disparo, e a redução escala com o quanto o gatilho
+# passa dele. Por isso a profundidade do duck depende MUITO do volume da fala:
+#
+#   threshold/ratio | fala alta | fala média (-12dB) | fala baixa (-20dB)
+#   0.018 / 12      |  12.0 dB  |       1.6 dB       |      0.0 dB
+#   0.001 /  4      |  27.9 dB  |      19.7 dB       |     13.7 dB
+#
+# A primeira calibração usou um tom em escala cheia como "voz" e parou em
+# 0.018, o que parecia certo (12 dB). Só que fala real nunca chega perto de
+# escala cheia — ela vive na faixa -12 a -20 dB, onde aquele ajuste dava
+# praticamente zero e a música não abaixava. Daí o threshold no piso.
+#
+# 0.001 é o mínimo aceito pelo ffmpeg (o filtro recusa abaixo de 0.000976563).
+# Para um duck mais suave, suba o threshold: 0.0015 e 0.003 são as próximas
+# paradas medidas (17.0 dB e 13.3 dB na fala média).
+#
+# Contrapartida: com o threshold no piso, qualquer som do clipe dispara o duck.
+# Em clipe que já tem música própria alta e contínua, a trilha adicionada fica
+# abaixada o tempo todo.
+TRILHA_DUCK_THRESHOLD      = 0.001
+TRILHA_DUCK_RATIO          = 4
 # attack curto pega o início da fala antes da música vazar por cima da primeira
 # sílaba; release longo evita o bombeamento que denuncia compressão malfeita.
 TRILHA_DUCK_ATTACK_MS      = 20

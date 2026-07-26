@@ -2,12 +2,19 @@
 Teste comportamental do modo 'ducking': mede se a musica realmente recua
 quando ha voz no clipe.
 
-Monta um clipe de 6s cujo audio simula voz em 0-2s e 4-6s, com silencio
-em 2-4s. A musica e um tom continuo numa frequencia distinta, para poder
-ser medida isolada por bandpass.
+Monta clipes de 6s cujo audio simula voz em 0-2s e 4-6s, com silencio em
+2-4s. A musica e um tom continuo numa frequencia distinta, para poder ser
+medida isolada por bandpass.
 
   voz    = 1000 Hz  (dentro da banda 200-4000 Hz que o gatilho escuta)
   musica = 6000 Hz  (fora da banda do gatilho, medivel separadamente)
+
+IMPORTANTE - por que os niveis de voz importam:
+A primeira versao deste teste usava um tom em ESCALA CHEIA como voz. Isso
+mede um cenario que nao existe: fala real vive entre -12 e -20 dB. O ajuste
+que parecia certo naquela medicao dava duck praticamente zero na faixa real,
+e a musica nao abaixava nos videos. Por isso agora medimos na faixa realista
+e travamos tambem o caso da fala baixa.
 
 Rodar:  backend/venv/Scripts/python.exe backend/test_trilha_ducking_audio.py
 """
@@ -23,9 +30,25 @@ from video_processor import _filtro_trilha
 
 FFMPEG = r"C:/Users/78787/Documents/ffmpeg/bin/ffmpeg"
 
-# Alvo: musica 0.5 sem voz, 0.12 com voz -> 20*log10(0.5/0.12) ~= 12.4 dB
-DELTA_MIN_DB = 9.0
-DELTA_MAX_DB = 16.0
+# Fala normal (~-16 dB): tem que abaixar bem, sem sumir por completo.
+NIVEL_FALA_NORMAL = 0.15
+DUCK_NORMAL_MIN_DB = 12.0
+DUCK_NORMAL_MAX_DB = 26.0
+
+# Fala baixa (~-20 dB): o bug relatado pelo Lucas. Aqui o duck media 0.00 dB
+# e a musica simplesmente nao abaixava. Guarda de regressao.
+NIVEL_FALA_BAIXA = 0.1
+DUCK_BAIXA_MIN_DB = 8.0
+
+FALHAS = []
+
+
+def checa(nome, condicao, detalhe=""):
+    if condicao:
+        print(f"  ok    {nome}")
+    else:
+        print(f"  FALHA {nome} {detalhe}")
+        FALHAS.append(nome)
 
 
 def run(cmd):
@@ -33,7 +56,6 @@ def run(cmd):
     if r.returncode != 0:
         print(r.stderr.decode("utf-8", errors="replace")[-800:])
         raise SystemExit(f"ffmpeg falhou: {' '.join(cmd[:6])}...")
-    return r
 
 
 def medir(path, freq, inicio, dur):
@@ -51,51 +73,58 @@ def medir(path, freq, inicio, dur):
 
 
 tmp = tempfile.mkdtemp(prefix="duck_test_")
-clipe = os.path.join(tmp, "clipe.mp4")
 musica = os.path.join(tmp, "musica.mp3")
-saida = os.path.join(tmp, "saida.mp4")
 
-# Clipe: video azul + "voz" em 0-2s e 4-6s (1000 Hz ligado/desligado)
-run([FFMPEG, "-y", "-loglevel", "error",
-     "-f", "lavfi", "-i", "color=c=blue:s=320x180:r=30:d=6",
-     "-f", "lavfi", "-i",
-     "sine=frequency=1000:sample_rate=44100:duration=6,"
-     "volume='if(between(t,2,4),0,1)':eval=frame",
-     "-c:v", "libx264", "-pix_fmt", "yuv420p",
-     "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100", "-shortest", clipe])
-
-# Musica: tom continuo de 6000 Hz
 run([FFMPEG, "-y", "-loglevel", "error",
      "-f", "lavfi", "-i", "sine=frequency=6000:sample_rate=44100:duration=6",
      "-c:a", "libmp3lame", "-b:a", "192k", musica])
 
-# Aplica o modo ducking com o MESMO grafo que o pipeline usa
-run([FFMPEG, "-y", "-loglevel", "error",
-     "-i", clipe, "-stream_loop", "-1", "-i", musica,
-     "-filter_complex", _filtro_trilha("ducking"),
-     "-map", "0:v:0", "-map", "[final_a]",
-     "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
-     "-t", "6.000", saida])
 
-com_voz = medir(saida, 6000, 0.5, 1.0)    # janela com voz -> musica deve recuar
-sem_voz = medir(saida, 6000, 2.5, 1.0)    # janela muda    -> musica deve subir
-delta = sem_voz - com_voz
+def duck_em(nivel_voz):
+    """Quantos dB a musica recua entre a janela com voz e a janela muda."""
+    clipe = os.path.join(tmp, f"clipe_{nivel_voz}.mp4")
+    run([FFMPEG, "-y", "-loglevel", "error",
+         "-f", "lavfi", "-i", "color=c=blue:s=320x180:r=30:d=6",
+         "-f", "lavfi", "-i",
+         f"sine=frequency=1000:sample_rate=44100:duration=6,"
+         f"volume='if(between(t,2,4),0,{nivel_voz})':eval=frame",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p",
+         "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100", "-shortest", clipe])
+
+    saida = os.path.join(tmp, f"saida_{nivel_voz}.mp4")
+    run([FFMPEG, "-y", "-loglevel", "error",
+         "-i", clipe, "-stream_loop", "-1", "-i", musica,
+         "-filter_complex", _filtro_trilha("ducking"),
+         "-map", "0:v:0", "-map", "[final_a]",
+         "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
+         "-t", "6.000", saida])
+
+    com_voz = medir(saida, 6000, 0.5, 1.0)
+    sem_voz = medir(saida, 6000, 2.5, 1.0)
+    return sem_voz - com_voz
+
+
+d_normal = duck_em(NIVEL_FALA_NORMAL)
+d_baixa = duck_em(NIVEL_FALA_BAIXA)
 
 print("=" * 62)
-print(f"  musica COM voz (0.5-1.5s):  {com_voz:7.2f} dB")
-print(f"  musica SEM voz (2.5-3.5s):  {sem_voz:7.2f} dB")
-print(f"  diferenca (o duck):         {delta:7.2f} dB")
-print(f"  alvo: entre {DELTA_MIN_DB} e {DELTA_MAX_DB} dB")
+print(f"  duck com fala normal (~-16 dB):  {d_normal:7.2f} dB")
+print(f"  duck com fala baixa   (~-20 dB): {d_baixa:7.2f} dB")
 print("=" * 62)
 
-if delta < DELTA_MIN_DB:
-    print("\nFALHOU: duck fraco demais - a musica quase nao recua na fala.")
-    print("  Ajuste: AUMENTE TRILHA_DUCK_RATIO e/ou DIMINUA TRILHA_DUCK_THRESHOLD")
-    sys.exit(1)
-if delta > DELTA_MAX_DB:
-    print("\nFALHOU: duck forte demais - a musica some na fala.")
-    print("  Ajuste: DIMINUA TRILHA_DUCK_RATIO e/ou AUMENTE TRILHA_DUCK_THRESHOLD")
-    sys.exit(1)
+print("fala normal:")
+checa(f"abaixa o suficiente (>= {DUCK_NORMAL_MIN_DB} dB)", d_normal >= DUCK_NORMAL_MIN_DB,
+      f"(mediu {d_normal:.2f} dB — suba a sensibilidade baixando TRILHA_DUCK_THRESHOLD)")
+checa(f"nao some por completo (<= {DUCK_NORMAL_MAX_DB} dB)", d_normal <= DUCK_NORMAL_MAX_DB,
+      f"(mediu {d_normal:.2f} dB — suba TRILHA_DUCK_THRESHOLD para suavizar)")
 
-print("\nPASSOU: o ducking esta dentro do alvo.")
+print("fala baixa (regressao do bug relatado):")
+checa(f"ainda abaixa de forma audivel (>= {DUCK_BAIXA_MIN_DB} dB)", d_baixa >= DUCK_BAIXA_MIN_DB,
+      f"(mediu {d_baixa:.2f} dB — era esse o bug: em item com fala baixa a musica nao abaixava)")
+
+print()
+if FALHAS:
+    print(f"{len(FALHAS)} falha(s): {', '.join(FALHAS)}")
+    sys.exit(1)
+print("todos os testes passaram")
 sys.exit(0)
