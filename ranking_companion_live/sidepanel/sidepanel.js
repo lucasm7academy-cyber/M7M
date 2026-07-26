@@ -33,6 +33,11 @@ const btnCreateTestPreset = document.getElementById("btnCreateTestPreset");
 const btnToggleCreateRanking = document.getElementById("btnToggleCreateRanking");
 const createRankingPanel = document.getElementById("createRankingPanel");
 const newRankingTitle = document.getElementById("newRankingTitle");
+// Preset que vem escrito no HTML ("RANKING"). Capturado no boot para o campo
+// voltar a ele depois de criar um ranking, em vez de ficar em branco.
+// Fica aqui e não hardcoded no JS para haver um lugar só onde o preset é
+// definido: o proprio sidepanel.html.
+const NEW_RANKING_TITULO_PRESET = newRankingTitle ? newRankingTitle.value : "";
 const newRankingQty = document.getElementById("newRankingQty");
 const newRankingOrder = document.getElementById("newRankingOrder");
 const btnSubmitCreateRanking = document.getElementById("btnSubmitCreateRanking");
@@ -124,6 +129,25 @@ const livePreviewTarjaText = document.getElementById("livePreviewTarjaText");
 const livePreviewTarjaResize = document.getElementById("livePreviewTarjaResize");
 
 // ── Initialize ──
+// Recarrega TODO o estado que depende da API. Usada no boot, ao salvar as
+// configurações e no botão de atualizar.
+//
+// Existe como função única de propósito: essa sequência já esteve copiada em
+// três lugares e o botão de atualizar tinha ficado para trás sem o loadMusic().
+// Resultado: se o boot pegasse a API fora do ar (um restart do backend, por
+// exemplo), o refresh trazia rankings e pastas de volta — dando a impressão de
+// que estava tudo certo — mas a lista de músicas ficava vazia para sempre.
+async function recarregarTudo() {
+  const ok = await checkApiConnection();
+  if (!ok) return false;
+  loadOverlays();
+  loadRankings();
+  loadDriveFolders();
+  loadMusic();
+  startRankingStatusPolling();
+  return true;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   // Load saved API URL
   chrome.storage.local.get(["apiUrl", "lastRankingId"], (result) => {
@@ -134,15 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (result.lastRankingId) {
       activeRankingId = result.lastRankingId;
     }
-    checkApiConnection().then((ok) => {
-      if (ok) {
-        loadOverlays();
-        loadRankings();
-        loadDriveFolders();
-        loadMusic();
-        startRankingStatusPolling();
-      }
-    });
+    recarregarTudo();
   });
 
   setupEventListeners();
@@ -171,23 +187,14 @@ function setupEventListeners() {
       chrome.storage.local.set({ apiUrl: API_URL }, () => {
         settingsPanel.classList.add("collapsed");
         showStatusMessage("Configurações salvas!", "success");
-        checkApiConnection().then((ok) => {
-          if (ok) {
-            loadOverlays();
-            loadRankings();
-            loadDriveFolders();
-            loadMusic();
-            startRankingStatusPolling();
-          }
-        });
+        recarregarTudo();
       });
     }
   });
 
   // Refresh Rankings
   refreshRankingsBtn.addEventListener("click", () => {
-    loadRankings();
-    loadDriveFolders();
+    recarregarTudo();
   });
 
   // Change selected ranking
@@ -1284,7 +1291,7 @@ async function createNewRanking() {
     }
     const newRanking = await res.json();
     
-    newRankingTitle.value = "";
+    newRankingTitle.value = NEW_RANKING_TITULO_PRESET;
     if (createRankingPanel) createRankingPanel.classList.add("collapsed");
     if (btnToggleCreateRanking) btnToggleCreateRanking.textContent = "+ Novo";
 
