@@ -218,14 +218,27 @@ TRILHA_VOL_DUCK            = 0.5
 # praticamente zero e a música não abaixava. Daí o threshold no piso.
 #
 # 0.001 é o mínimo aceito pelo ffmpeg (o filtro recusa abaixo de 0.000976563).
-# Para um duck mais suave, suba o threshold: 0.0015 e 0.003 são as próximas
-# paradas medidas (17.0 dB e 13.3 dB na fala média).
+#
+# Os dois parâmetros fazem coisas diferentes, e confundi-los custou duas
+# rodadas de ajuste:
+#   threshold = QUANDO dispara (sensibilidade)
+#   ratio     = QUANTO abaixa depois de disparar (profundidade)
+#
+# Com threshold no piso, o nível da música durante a fala normal por ratio:
+#   ratio 4   -> 0.052   (sumia; foi a queixa "abaixou demais")
+#   ratio 2.5 -> 0.082
+#   ratio 2   -> 0.111   <- atual
+#   ratio 1.5 -> 0.184
+# Referência: o modo 50_50 usa 0.12 fixo, e a base sem fala aqui é 0.5.
+#
+# ratio=2 deixa a música durante a fala praticamente no mesmo nível do modo
+# fixo (0.111 vs 0.120), subindo para 0.5 nas pausas.
 #
 # Contrapartida: com o threshold no piso, qualquer som do clipe dispara o duck.
 # Em clipe que já tem música própria alta e contínua, a trilha adicionada fica
 # abaixada o tempo todo.
 TRILHA_DUCK_THRESHOLD      = 0.001
-TRILHA_DUCK_RATIO          = 4
+TRILHA_DUCK_RATIO          = 2
 # attack curto pega o início da fala antes da música vazar por cima da primeira
 # sílaba; release longo evita o bombeamento que denuncia compressão malfeita.
 TRILHA_DUCK_ATTACK_MS      = 20
