@@ -1629,6 +1629,7 @@ def _filtro_trilha(modo: str) -> str:
 
     Modos:
         100_musica  → música sozinha a 100% (o áudio do clipe já vem mudo do item)
+        ducking     → música a 50% recuando sozinha quando há voz no clipe
         qualquer outro (inclui 50_50) → música em nível fixo baixo
 
     0.12 é amplitude linear (≈ -18 dB), o que o ouvido percebe como ~25% do
@@ -1642,6 +1643,21 @@ def _filtro_trilha(modo: str) -> str:
 
     if modo == "100_musica":
         return f"[1:a]volume=1.0[mus];[0:a][mus]{_MIX}"
+
+    if modo == "ducking":
+        # O áudio do clipe é duplicado: [voz] entra na mistura final intacto
+        # (100%), [key] vira só o gatilho do compressor. O passa-banda no
+        # gatilho concentra a detecção na região da fala, reduzindo disparo
+        # por graves e por música de fundo já embutida no clipe.
+        return (
+            f"[0:a]asplit=2[voz][key_raw];"
+            f"[key_raw]highpass=f=200,lowpass=f=4000[key];"
+            f"[1:a]volume={TRILHA_VOL_DUCK}[mus];"
+            f"[mus][key]sidechaincompress="
+            f"threshold={TRILHA_DUCK_THRESHOLD}:ratio={TRILHA_DUCK_RATIO}"
+            f":attack={TRILHA_DUCK_ATTACK_MS}:release={TRILHA_DUCK_RELEASE_MS}[mus_duck];"
+            f"[voz][mus_duck]{_MIX}"
+        )
 
     return f"[1:a]volume=0.12[mus];[0:a][mus]{_MIX}"
 

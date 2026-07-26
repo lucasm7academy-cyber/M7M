@@ -198,6 +198,20 @@ NARRATION_DUCK_VOLUME      = 0.03
 # 0 = corte seco; 0.3 = transição perceptível e natural.
 NARRATION_FADE_S           = 0.3
 
+# ── Trilha de fundo (música) ─────────────────────────────────────────────────
+# Nível base da música no modo "ducking", em amplitude linear, ANTES do
+# compressor. O sidechaincompress derruba esse valor enquanto há voz no clipe.
+TRILHA_VOL_DUCK            = 0.5
+# Parâmetros do sidechaincompress. threshold e ratio são calibrados por
+# medição — ver docs/superpowers/specs/2026-07-26-modo-trilha-ducking-design.md
+# Alvo: música ~0.5 sem voz, ~0.12 com voz (≈ 12 dB de diferença).
+TRILHA_DUCK_THRESHOLD      = 0.03
+TRILHA_DUCK_RATIO          = 8
+# attack curto pega o início da fala antes da música vazar por cima da primeira
+# sílaba; release longo evita o bombeamento que denuncia compressão malfeita.
+TRILHA_DUCK_ATTACK_MS      = 20
+TRILHA_DUCK_RELEASE_MS     = 350
+
 # ── Legendas automáticas (faster-whisper + libass) ───────────────────────────
 # Whisper roda na GPU pra transcrever o áudio com timestamps por palavra.
 WHISPER_MODEL_SIZE   = os.environ.get("WHISPER_MODEL_SIZE", "small")
