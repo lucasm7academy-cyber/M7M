@@ -289,7 +289,7 @@ export default function RankingGlobalConfigPanel({ ranking, overlays, onChange }
             </select>
 
             {ranking.trilha_fundo && ranking.trilha_fundo !== 'none' && (
-              <div className="flex gap-1 pt-0.5">
+              <div className="flex flex-col gap-1 pt-0.5">
                 <button
                   onClick={() => handleChange({ trilha_modo: '100_musica' })}
                   className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium border transition-all cursor-pointer ${
@@ -300,6 +300,17 @@ export default function RankingGlobalConfigPanel({ ranking, overlays, onChange }
                   title="Muta o áudio original do vídeo e toca apenas a música + narrações/SFX"
                 >
                   100% Música (Sem Áudio Original)
+                </button>
+                <button
+                  onClick={() => handleChange({ trilha_modo: 'ducking' })}
+                  className={`flex-1 py-1 px-1.5 rounded text-[10px] font-medium border transition-all cursor-pointer ${
+                    ranking.trilha_modo === 'ducking'
+                      ? 'bg-accent/20 border-accent text-accent font-semibold'
+                      : 'bg-card2 border-border text-muted hover:text-white'
+                  }`}
+                  title="Mantém 100% do áudio original e toca a música num nível audível que abaixa sozinho quando alguém fala"
+                >
+                  Música Dinâmica (abaixa na fala)
                 </button>
                 <button
                   onClick={() => handleChange({ trilha_modo: '50_50' })}
