@@ -352,6 +352,15 @@ HOOK_SOM_SAIDA_DEFAULT = "whoosh"
 HOOK_FADE_DUR_S = 0.15
 
 # ── Ranking (Top N) ────────────────────────────────────────────────────────────
+# Pool de sorteio do efeito sonoro de transição. Cada item do ranking sorteia o
+# seu na criação, então a transição alterna dentro do mesmo vídeo em vez de ser
+# sempre a mesma.
+#
+# Ficam FORA do pool, de propósito, dois arquivos que existem em SFX_DIR:
+#   notificacao    — destoa como som de transição (decisão do Lucas)
+#   cta_segue_nois — é a locução "já segue nois aí" do CTA final, não um efeito
+RANKING_TRANSICAO_SFX_POOL = ["camera", "click", "whoosh"]
+
 RANKING_QUANTIDADES       = [3, 4, 5]
 RANKING_ORDEM_DEFAULT      = "decrescente"   # 5 → 1 (topo primeiro)
 RANKING_DURACAO_FIXA_DEFAULT      = 12.0     # s por item (modo "fixa")

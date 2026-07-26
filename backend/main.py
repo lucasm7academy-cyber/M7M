@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
 import sys
 import tempfile
 import uuid
@@ -31,6 +32,7 @@ from config import (
     FRAMES_DIR, TARJA_DEFAULT, SFX_DIR, MUSIC_DIR,
     HOOK_TIPOS, HOOK_TIPO_DEFAULT, HOOK_SOM_OPCOES, HOOK_SOM_ENTRADA_DEFAULT,
     HOOK_SOM_SAIDA_DEFAULT, HOOK_TEXT_DEFAULT, HOOK_DURATION_S,
+    RANKING_TRANSICAO_SFX_POOL,
 )
 from video_processor import GPU_AVAILABLE, CODEC_VIDEO, gpu_info, processar_video, proximo_titulo, extrair_frame, obter_duracao
 from viral_fetcher import buscar_videos_virais
@@ -985,7 +987,8 @@ def criar_ranking(req: CreateRankingRequest):
         "narracao_texto": None, "thumb_cache": None, "status_link": "verificando",
         "tarja": dict(TARJA_DEFAULT),
         "transicao_tipo": "fade_preto",
-        "transicao_sfx": "click",
+        # Sorteado por item para a transição alternar dentro do mesmo vídeo.
+        "transicao_sfx": random.choice(RANKING_TRANSICAO_SFX_POOL),
     } for i in range(qtd)]
     rk = {
         "id": str(uuid.uuid4()),
@@ -998,7 +1001,8 @@ def criar_ranking(req: CreateRankingRequest):
         "gerar_legenda": False,
         "legendar_titulo_geral": req.legendar_titulo_geral,
         "transicao_tipo": "fade_preto",
-        "transicao_sfx": "click",
+        # Fallback global, usado por item que esteja com transicao_sfx="default".
+        "transicao_sfx": random.choice(RANKING_TRANSICAO_SFX_POOL),
         "trilha_fundo": req.trilha_fundo,
         "trilha_modo": req.trilha_modo or "50_50",
         "hook": None,
@@ -1059,7 +1063,9 @@ def editar_ranking(rid: str, req: dict):
                     "narracao_texto": None, "thumb_cache": None, "status_link": "verificando",
                     "tarja": dict(TARJA_DEFAULT),
                     "transicao_tipo": "fade_preto",
-                    "transicao_sfx": "default",
+                    # Sorteado também aqui: item criado ao aumentar a quantidade
+                    # antes herdava o global e destoava dos que ja existiam.
+                    "transicao_sfx": random.choice(RANKING_TRANSICAO_SFX_POOL),
                 })
             rk["itens"] = itens
 
