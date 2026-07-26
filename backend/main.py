@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import random
 import sys
@@ -34,6 +35,37 @@ from config import (
     HOOK_SOM_SAIDA_DEFAULT, HOOK_TEXT_DEFAULT, HOOK_DURATION_S,
     RANKING_TRANSICAO_SFX_POOL,
 )
+
+
+# ── Log de acesso ─────────────────────────────────────────────────────────────
+# A extensão pergunta o status dos rankings a cada 3s e o painel pede frames de
+# preview a cada mexida no trim. O log de acesso do uvicorn registrava todas,
+# enchendo o console e escondendo o progresso do render.
+#
+# Silenciamos apenas os GET bem-sucedidos dessas rotas de polling. Continuam
+# aparecendo: qualquer resposta de erro (>= 400), toda mutação (POST, PATCH,
+# DELETE) e qualquer outra rota.
+class _FiltroLogPolling(logging.Filter):
+    ROTAS_DE_POLLING = ("/api/ranking", "/api/frame")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            _, metodo, caminho, _, status = record.args
+            status = int(status)
+        except (TypeError, ValueError):
+            # Formato de log inesperado (outra versão do uvicorn): na dúvida,
+            # deixa passar. Barulho a mais é melhor que perder um erro.
+            return True
+        if metodo != "GET" or status >= 400:
+            return True
+        caminho = caminho.split("?", 1)[0]
+        return not any(
+            caminho == rota or caminho.startswith(rota + "/")
+            for rota in self.ROTAS_DE_POLLING
+        )
+
+
+logging.getLogger("uvicorn.access").addFilter(_FiltroLogPolling())
 from video_processor import GPU_AVAILABLE, CODEC_VIDEO, gpu_info, processar_video, proximo_titulo, extrair_frame, obter_duracao
 from viral_fetcher import buscar_videos_virais
 import drive_uploader
