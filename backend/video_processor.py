@@ -1917,7 +1917,11 @@ async def processar_video(item: dict, clip_index: int, emit) -> str | None:
         # scale → blurred bg → overlay com video_y (pad filter bugado neste ffmpeg)
         filtros.append(
             f"[0:v]split=2[v_bg][v_main];"
-            f"[v_bg]scale='if(gt(iw,ih),1.45*{scale_w},-2)':'if(gt(iw,ih),-2,1.35*{scale_h})',boxblur=12:3[bg_blurred];"
+            # Mesma otimização do ranking_processor: blur em 1/4 da resolução e
+            # de volta. Desfocar direto no frame de ~2584px custa 4x mais CPU.
+            f"[v_bg]scale='if(gt(iw,ih),1.45*{scale_w},-2)':'if(gt(iw,ih),-2,1.35*{scale_h})',"
+            f"scale=trunc(iw/4/2)*2:trunc(ih/4/2)*2,boxblur=3:2,"
+            f"scale=trunc(iw*4/2)*2:trunc(ih*4/2)*2[bg_blurred];"
             f"color=c=black:s={WIDTH}x{HEIGHT}:r={RANKING_FPS}[bg_black];"
             f"[bg_black][bg_blurred]overlay=(W-w)/2:(H-h)/2+{video_y}:shortest=1[bg_canvas];"
             f"[v_main]scale='if(gt(iw,ih),{scale_w},-2)':'if(gt(iw,ih),-2,{scale_h})':flags=lanczos[vid];"
