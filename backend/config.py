@@ -202,11 +202,14 @@ NARRATION_FADE_S           = 0.3
 # Nível base da música no modo "ducking", em amplitude linear, ANTES do
 # compressor. O sidechaincompress derruba esse valor enquanto há voz no clipe.
 TRILHA_VOL_DUCK            = 0.5
-# Parâmetros do sidechaincompress. threshold e ratio são calibrados por
-# medição — ver docs/superpowers/specs/2026-07-26-modo-trilha-ducking-design.md
-# Alvo: música ~0.5 sem voz, ~0.12 com voz (≈ 12 dB de diferença).
-TRILHA_DUCK_THRESHOLD      = 0.03
-TRILHA_DUCK_RATIO          = 8
+# Parâmetros do sidechaincompress, calibrados por medição — rode
+# backend/test_trilha_ducking_audio.py depois de mexer neles.
+# Alvo: música ~0.5 sem voz, ~0.12 com voz (≈ 12 dB de diferença). Estes
+# valores medem 12.00 dB no clipe sintético de teste.
+# Na varredura, ratio praticamente não move o resultado (7.6 dB a 8.2 dB indo
+# de 8 para 20); quem controla a profundidade do duck é o threshold.
+TRILHA_DUCK_THRESHOLD      = 0.018
+TRILHA_DUCK_RATIO          = 12
 # attack curto pega o início da fala antes da música vazar por cima da primeira
 # sílaba; release longo evita o bombeamento que denuncia compressão malfeita.
 TRILHA_DUCK_ATTACK_MS      = 20
