@@ -306,8 +306,18 @@ def montar_item(ranking: dict, item: dict, posicao: int, idx: int, emit) -> str 
     # Download do trecho
     print(f"   ├─ [Fase 1/4 - Download] Baixando trecho de {inicio}s a {fim}s (Duração: {fim-inicio:.1f}s)...")
     raw = baixar_trecho(link, inicio, fim)
-    if raw:
-        print(f"   ├─ [Fase 1/4 - Download] ✔️ Trecho baixado com sucesso.")
+    if not raw:
+        # Sem este return o None seguia para os argumentos do ffmpeg e o item
+        # morria com "TypeError: expected str, bytes or os.PathLike object,
+        # not NoneType" — um erro opaco que escondia a causa real.
+        # baixar_trecho já imprimiu o motivo (yt-dlp ou recorte local) acima.
+        print(
+            f"   └─ [Fase 1/4 - Download] ❌ Falhou no item #{posicao}. "
+            f"Link inacessível, privado, com restrição de região, ou bloqueado "
+            f"pelo YouTube. Motivo detalhado nas linhas acima."
+        )
+        return None
+    print(f"   ├─ [Fase 1/4 - Download] ✔️ Trecho baixado com sucesso.")
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     vid_id = _video_id_from_url(link, idx)
