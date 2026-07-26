@@ -1632,12 +1632,10 @@ def _filtro_trilha(modo: str) -> str:
         ducking     → música a 50% recuando sozinha quando há voz no clipe
         qualquer outro (inclui 50_50) → música em nível fixo baixo
 
-    0.12 é amplitude linear (≈ -18 dB), o que o ouvido percebe como ~25% do
-    volume. Por isso os painéis rotulam esse modo como "25% Música / 100%
-    Original". Se mudar este número, atualize também os rótulos em:
-        ranking_companion_live/sidepanel/sidepanel.html
-        frontend/src/ranking/RankingGlobalConfigPanel.tsx
-        frontend/src/components/ConfigPanel.tsx
+    O 0.12 é amplitude linear (≈ -18 dB). Os painéis NÃO anunciam esse número:
+    percentagem de amplitude não corresponde ao volume percebido, e tentar
+    traduzir os dois só gerou rótulos contraditórios (25% num painel, 30% em
+    outro, 0.12 no código). Os rótulos descrevem o comportamento, não o valor.
     """
     _MIX = "amix=inputs=2:duration=first:dropout_transition=0:normalize=0[final_a]"
 

@@ -319,9 +319,9 @@ export default function RankingGlobalConfigPanel({ ranking, overlays, onChange }
                       ? 'bg-accent/20 border-accent text-accent font-semibold'
                       : 'bg-card2 border-border text-muted hover:text-white'
                   }`}
-                  title="Mantém 100% do áudio original do vídeo e mixa a música baixinha ao fundo (~25%)"
+                  title="Mantém 100% do áudio original do vídeo e mixa a música num nível fixo bem baixo por baixo dele"
                 >
-                  25% Música / 100% Original
+                  Música Baixa ao Fundo (áudio original mandando)
                 </button>
               </div>
             )}
