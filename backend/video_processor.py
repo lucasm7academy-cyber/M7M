@@ -1619,6 +1619,33 @@ def _adicionar_hook(
             except OSError: pass
 
 
+def _filtro_trilha(modo: str) -> str:
+    """
+    Monta o -filter_complex da trilha de fundo para o modo dado.
+
+    Entradas esperadas no comando ffmpeg:
+        [0:a] = áudio do vídeo    [1:a] = música
+    Saída: [final_a]
+
+    Modos:
+        100_musica  → música sozinha a 100% (o áudio do clipe já vem mudo do item)
+        qualquer outro (inclui 50_50) → música em nível fixo baixo
+
+    0.12 é amplitude linear (≈ -18 dB), o que o ouvido percebe como ~25% do
+    volume. Por isso os painéis rotulam esse modo como "25% Música / 100%
+    Original". Se mudar este número, atualize também os rótulos em:
+        ranking_companion_live/sidepanel/sidepanel.html
+        frontend/src/ranking/RankingGlobalConfigPanel.tsx
+        frontend/src/components/ConfigPanel.tsx
+    """
+    _MIX = "amix=inputs=2:duration=first:dropout_transition=0:normalize=0[final_a]"
+
+    if modo == "100_musica":
+        return f"[1:a]volume=1.0[mus];[0:a][mus]{_MIX}"
+
+    return f"[1:a]volume=0.12[mus];[0:a][mus]{_MIX}"
+
+
 def _adicionar_trilha_fundo(video_path: str, musica_fundo: str, modo: str) -> bool:
     """
     Adiciona trilha sonora (mp3) sobre todo o vídeo final.
@@ -1636,22 +1663,14 @@ def _adicionar_trilha_fundo(video_path: str, musica_fundo: str, modo: str) -> bo
             print(f"[trilha] música não encontrada: {musica_path}")
             return False
 
-    # 0.12 é amplitude linear (≈ -18 dB), o que o ouvido percebe como ~25% do volume.
-    # Por isso os painéis rotulam esse modo como "25% Música / 100% Original".
-    # Se mudar este número, atualize também os rótulos em:
-    #   ranking_companion_live/sidepanel/sidepanel.html
-    #   frontend/src/ranking/RankingGlobalConfigPanel.tsx
-    #   frontend/src/components/ConfigPanel.tsx
-    vol_musica = 1.0 if modo == "100_musica" else 0.12
     out_path = video_path + ".trilha.mp4"
-    
+
     dur = _get_video_duration(video_path)
     cmd = [
         "ffmpeg", "-y", "-loglevel", "error",
         "-i", video_path,
         "-stream_loop", "-1", "-i", musica_path,
-        "-filter_complex",
-        f"[1:a]volume={vol_musica}[mus];[0:a][mus]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[final_a]",
+        "-filter_complex", _filtro_trilha(modo),
         "-map", "0:v:0", "-map", "[final_a]",
         "-c:v", "copy",
         "-c:a", "aac", "-b:a", "192k", "-ac", "2", "-ar", "44100",
@@ -1669,7 +1688,7 @@ def _adicionar_trilha_fundo(video_path: str, musica_fundo: str, modo: str) -> bo
                 except OSError: pass
             return False
         os.replace(out_path, video_path)
-        print(f"[trilha] aplicou '{musica_fundo}' (modo={modo}, vol={vol_musica}) com sucesso!")
+        print(f"[trilha] aplicou '{musica_fundo}' (modo={modo}) com sucesso!")
         return True
     except Exception as e:
         print(f"[trilha] erro ao aplicar música: {e}")
